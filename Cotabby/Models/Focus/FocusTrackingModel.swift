@@ -77,6 +77,12 @@ final class FocusTrackingModel: ObservableObject {
         tracker.invalidateTransientCaretCaches()
     }
 
+    /// Forwards host-publish capture ownership so the focus timer skips stacked AX walks while the
+    /// per-keystroke poll is already refreshing.
+    func setHostPublishCaptureActive(_ active: Bool) {
+        tracker.setHostPublishCaptureActive(active)
+    }
+
     /// Updates the AX polling interval at runtime. Restarts the timer if already running.
     func updatePollInterval(milliseconds: Int) {
         tracker.updatePollInterval(TimeInterval(milliseconds) / 1000.0)

@@ -20,6 +20,11 @@ final class CurrentWordSpellChecker {
     /// avoids cross-contamination with whatever spellcheck state other apps have armed.
     private let documentTag: Int
 
+    /// Per-token caches so rapid prediction cycles for the same in-progress word do not re-enter
+    /// `NSSpellChecker` XPC on every keystroke. Cleared implicitly when the word changes.
+    private var typoVerdictCache: (word: String, isTypo: Bool)?
+    private var correctionCache: (word: String, correction: String?)?
+
     init() {
         documentTag = NSSpellChecker.uniqueSpellDocumentTag()
         // We deliberately do not mutate `NSSpellChecker.shared` (e.g. forcing
@@ -36,6 +41,10 @@ final class CurrentWordSpellChecker {
     /// punctuation (`nmae,`) where the flagged range stops short of the punctuation.
     func isTypo(_ word: String) -> Bool {
         guard !word.isEmpty else { return false }
+        if let typoVerdictCache, typoVerdictCache.word == word {
+            return typoVerdictCache.isTypo
+        }
+
         let misspelledRange = NSSpellChecker.shared.checkSpelling(
             of: word,
             startingAt: 0,
@@ -44,10 +53,14 @@ final class CurrentWordSpellChecker {
             inSpellDocumentWithTag: documentTag,
             wordCount: nil
         )
-        guard misspelledRange.location == 0 else {
-            return false
+        let isTypo: Bool
+        if misspelledRange.location == 0 {
+            isTypo = misspelledRange.length == (word as NSString).length
+        } else {
+            isTypo = false
         }
-        return misspelledRange.length == (word as NSString).length
+        typoVerdictCache = (word, isTypo)
+        return isTypo
     }
 
     /// `NSSpellChecker`'s own ranked corrections for the word (best first), or an empty array when it
@@ -66,6 +79,10 @@ final class CurrentWordSpellChecker {
     /// The single instant correction to offer for `word`: the top native guess that is a different
     /// single word, recased to match the typo's capitalization. `nil` when there is no usable guess.
     func bestCorrection(for word: String) -> String? {
+        if let correctionCache, correctionCache.word == word {
+            return correctionCache.correction
+        }
+
         let candidate = nativeCorrections(for: word)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { candidate in
@@ -75,9 +92,8 @@ final class CurrentWordSpellChecker {
                     // word count and break the one-word-replace delete math on accept.
                     && !candidate.contains(" ")
             }
-        guard let candidate else {
-            return nil
-        }
-        return TypoCaseTransfer.applying(caseOf: word, to: candidate)
+        let correction = candidate.map { TypoCaseTransfer.applying(caseOf: word, to: $0) }
+        correctionCache = (word, correction)
+        return correction
     }
 }

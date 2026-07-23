@@ -315,4 +315,73 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
 
         XCTAssertEqual(rig.coordinator.state, stateBefore)
     }
+
+    // MARK: - Host-publish wait
+
+    func test_hostPublishCeilingMissDoesNotScheduleStalePrediction() async {
+        let rig = retained(makeCoordinatorRig())
+        // Keep the snapshot unchanged so every poll misses the publish gate.
+        rig.focusProvider.simulatedMillisecondsSinceLastCapture = 0
+
+        rig.coordinator.schedulePredictionAfterHostPublishDelay()
+
+        XCTAssertEqual(rig.focusProvider.hostPublishCaptureActiveRequests.last, true)
+
+        await waitUntil(timeout: 1.0, "Ceiling miss never armed the late-publish baseline") {
+            rig.coordinator.pendingLateHostPublish != nil
+        }
+
+        // Give a little headroom past the 400ms ceiling; a stale schedule would enter debouncing.
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        XCTAssertTrue(rig.engine.requests.isEmpty, "Ceiling miss must not generate against pre-keystroke text")
+        XCTAssertNotEqual(rig.coordinator.state, .debouncing)
+        XCTAssertEqual(
+            rig.focusProvider.hostPublishCaptureActiveRequests.last,
+            false,
+            "Host-publish capture ownership must end when the poll stands down."
+        )
+    }
+
+    func test_lateHostPublishAfterCeilingSchedulesPrediction() async {
+        let rig = retained(makeCoordinatorRig())
+        rig.focusProvider.simulatedMillisecondsSinceLastCapture = 0
+
+        rig.coordinator.schedulePredictionAfterHostPublishDelay()
+        await waitUntil(timeout: 1.0, "Ceiling miss never armed the late-publish baseline") {
+            rig.coordinator.pendingLateHostPublish != nil
+        }
+
+        let typedSnapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Helloa")
+        let typedFocus = FocusSnapshot(
+            applicationName: typedSnapshot.applicationName,
+            bundleIdentifier: typedSnapshot.bundleIdentifier,
+            capability: .supported,
+            context: typedSnapshot
+        )
+        rig.focusProvider.snapshot = typedFocus
+        rig.coordinator.handleSupportedSnapshot(typedFocus)
+
+        await waitUntil("Late host publish never scheduled generation") {
+            rig.coordinator.state == .debouncing || !rig.engine.requests.isEmpty
+        }
+        XCTAssertNil(rig.coordinator.pendingLateHostPublish)
+    }
+
+    func test_hostPublishPollReusesFreshSnapshotInsteadOfForcingRefresh() async {
+        let rig = retained(makeCoordinatorRig())
+        // First refresh marks the provider fresh; subsequent polls with age 0 should skip refreshNow.
+        rig.focusProvider.refreshNow()
+        let refreshCountAfterSeed = rig.focusProvider.refreshCount
+        rig.focusProvider.simulatedMillisecondsSinceLastCapture = 0
+
+        rig.coordinator.schedulePredictionAfterHostPublishDelay()
+
+        // Wait through a few poll intervals without changing the snapshot.
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        XCTAssertEqual(
+            rig.focusProvider.refreshCount,
+            refreshCountAfterSeed,
+            "Host-publish polls must reuse a fresh snapshot instead of stacking forced AX walks."
+        )
+    }
 }

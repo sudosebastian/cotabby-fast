@@ -488,21 +488,44 @@ extension SuggestionCoordinator {
     ///
     /// Automatic mutation is intentionally limited to a committed word boundary. The shared planner
     /// revalidates the exact trailing word and requires that Space to still be present, so a stale AX
-    /// snapshot or a user who resumed typing cannot make Cotabby delete an unrelated suffix.
+    /// snapshot or a user who resumed typing cannot make Cotabby delete an unrelated suffix. A forced
+    /// refresh immediately before planning closes the gap where AX still showed `teh ` while the
+    /// user had already typed ahead — posting backspaces planned from that snapshot would eat the
+    /// new characters.
     private func applyAutomaticCorrection(
         typoWord: String,
         correctedWord: String,
         rawContext: FocusedInputSnapshot,
         workID: UInt64
     ) {
-        let liveContext = interactionState.materializeContext(from: rawContext)
+        // Abort if the user typed again since this prediction cycle was scheduled. Bumping
+        // `hostPublishPollGeneration` (new keystroke or cancel) means any backspace burst planned
+        // from the old cycle would race the live field.
+        let generationAtSchedule = hostPublishPollGeneration
+        focusModel.refreshNow()
+        guard generationAtSchedule == hostPublishPollGeneration else {
+            clearSuggestion()
+            hideOverlay(reason: "Overlay hidden because the user kept typing during automatic correction.")
+            state = .idle
+            logStage(
+                "typo-auto-correction-stale",
+                workID: workID,
+                message: "Skipped automatic correction because a newer keystroke invalidated the cycle."
+            )
+            return
+        }
+
+        let livePrecedingText = focusModel.snapshot.context?.precedingText ?? rawContext.precedingText
+        let liveContext = interactionState.materializeContext(
+            from: focusModel.snapshot.context ?? rawContext
+        )
         latestGenerationNumber = liveContext.generation
         guard let replacement = TypoCorrectionReplacementPlanner.plan(
-            precedingText: rawContext.precedingText,
+            precedingText: livePrecedingText,
             expectedTypo: typoWord,
             correctedWord: correctedWord,
             requiresTrailingSpace: true
-        ) else {
+        ), generationAtSchedule == hostPublishPollGeneration else {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the automatic correction target changed.")
             state = .idle
@@ -1067,7 +1090,10 @@ extension SuggestionCoordinator {
     /// Cancels debounce/generation tasks and advances the work id so late completions are ignored.
     func cancelPredictionWork() {
         pendingSpeculativeSignature = nil
+        pendingLateHostPublish = nil
         hostPublishPollGeneration &+= 1
+        // Retire any in-flight host-publish poll's ownership of focus captures so the timer resumes.
+        focusModel.setHostPublishCaptureActive(false)
         workController.cancelAll()
     }
 

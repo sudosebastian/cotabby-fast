@@ -124,6 +124,13 @@ extension SuggestionCoordinator {
             prewarmEngineForCurrentField(rawContext: focusedContext)
         }
 
+        // A host-publish poll that hit its ceiling without observing an AX change left a baseline
+        // arm. When the focus timer (or any later capture) finally publishes the keystroke, schedule
+        // against that post-keystroke text instead of regenerating from the pre-keystroke snapshot.
+        if schedulePredictionForLateHostPublishIfNeeded(focusedContext) {
+            return
+        }
+
         if overlayState.isVisible {
             hideOverlay(reason: "Overlay hidden because no ready suggestion remains.")
         }
@@ -212,21 +219,24 @@ extension SuggestionCoordinator {
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
-    /// up and generating against whatever's there. Chosen empirically: long enough to cover
-    /// Chrome's slower contenteditable publish on a busy page, short enough that the user can
-    /// always type ahead without the rescheduled suggestion feeling stuck.
+    /// up. Chosen empirically: long enough to cover Chrome's slower contenteditable publish on a
+    /// busy page, short enough that the user can always type ahead without the wait feeling stuck.
+    /// On ceiling without an observed change we stand down (see `pendingLateHostPublish`) rather
+    /// than generating against pre-keystroke text.
     private static let hostPublishWaitCeilingMs = 400
 
-    /// Interval between AX polls while waiting for the host publish. Same order of magnitude as
-    /// the focus poll itself (default 80ms) but tighter so we catch the publish promptly without
-    /// burning CPU on AX queries that are themselves 5–15ms each.
-    private static let hostPublishPollIntervalMs = 30
+    /// Steady interval between AX polls while waiting for the host publish, after the first miss.
+    /// Kept near the focus poll (50ms shipped) so host-publish and the focus timer do not both
+    /// force full captures every ~30ms on the main actor.
+    private static let hostPublishPollIntervalMs = 45
 
-    /// First-retry interval after the immediate (elapsed 0) poll, which runs inside the keystroke's
-    /// own tap callback before the host has even processed the key and therefore always misses. A
-    /// short first retry catches fast-publishing native apps in ~10ms instead of making them wait a
-    /// full steady interval; slow Chromium hosts fall through to `hostPublishPollIntervalMs` below.
+    /// First-retry interval after the keystroke. A short first retry catches fast-publishing native
+    /// apps in ~10ms; slow Chromium hosts fall through to `hostPublishPollIntervalMs` below.
     private static let hostPublishFirstPollIntervalMs = 10
+
+    /// Reuse window for host-publish polls: if the focus timer (or a prior poll) already captured
+    /// within this age, skip another synchronous AX walk and inspect the published snapshot.
+    private static let hostPublishSnapshotReuseWindowMilliseconds = 25
 
     /// Schedules a fresh prediction once the host app has actually published the new
     /// contenteditable text to AX. The previous fix waited a fixed 150ms — see PR #376 — but the
@@ -236,14 +246,16 @@ extension SuggestionCoordinator {
     ///
     /// We now snapshot the AX state at keystroke time (focused element identity, preceding text,
     /// selection) and poll `focusModel` until the snapshot actually moves on. The poll is capped
-    /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline — once the cap is
-    /// reached we generate against whatever's there, matching the old fixed-delay behavior.
+    /// at `hostPublishWaitCeilingMs`. Hitting the cap without a change used to generate anyway;
+    /// that stale generate is what looked like a swallowed character, so we now arm
+    /// `pendingLateHostPublish` and let a later real publish schedule instead.
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
     /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
     /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
     func schedulePredictionAfterHostPublishDelay() {
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
+        pendingLateHostPublish = nil
         let baseline = focusModel.snapshot.context
         // Anchor for folding the publish wait into the debounce: `schedulePrediction` subtracts
         // the wall time already spent waiting for AX from the configured debounce, so the debounce
@@ -251,6 +263,10 @@ extension SuggestionCoordinator {
         // from real uptime rather than the scheduled poll intervals because each poll's AX capture
         // adds milliseconds the schedule does not account for.
         let keystrokeUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+
+        // While this poll chain owns freshness, skip redundant focus-timer captures so the main
+        // actor is not paying two stacked AX walks for the same keystroke window.
+        focusModel.setHostPublishCaptureActive(true)
 
         // The event tap fires before the host processes the key, so an immediate `refreshNow()`
         // almost always reads the pre-keystroke value while still paying the full AX cost. Start at
@@ -293,7 +309,10 @@ extension SuggestionCoordinator {
             return
         }
 
-        focusModel.refreshNow()
+        // Prefer a recent capture from the focus timer (or a prior poll) over a forced walk. Each
+        // refresh is a synchronous multi-IPC AX capture; stacking forced walks on top of the
+        // 50ms focus timer was the dominant typing-lag cost on the main actor.
+        focusModel.refreshIfStale(maxAgeMilliseconds: Self.hostPublishSnapshotReuseWindowMilliseconds)
         guard pollGeneration == hostPublishPollGeneration else {
             return
         }
@@ -306,6 +325,7 @@ extension SuggestionCoordinator {
         let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
         let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
         if textChanged || elementChanged || selectionChanged {
+            endHostPublishCaptureIfCurrent(pollGeneration: pollGeneration)
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
             // exactly this content: scheduling another would only retire it and pay the full
@@ -329,16 +349,27 @@ extension SuggestionCoordinator {
             return
         }
 
-        // Ceiling: stop polling and generate anyway. Without this fallback a host that genuinely
-        // produces no AX change (rare but possible — e.g. dead-key composition) would never get
-        // its next prediction.
-        // We already waited the short first interval before entering this method; remaining polls
-        // use the steady cadence until the ceiling.
+        // Ceiling without an observed change: do NOT generate against the pre-keystroke snapshot.
+        // That path produced ghost text that ignored the just-typed character. Arm a late-publish
+        // baseline so the next real AX publish (focus timer) can schedule instead. Dead-key /
+        // composition hosts that never change text still get a prediction once selection moves.
         let interval = Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
-            schedulePrediction(
-                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
+            endHostPublishCaptureIfCurrent(pollGeneration: pollGeneration)
+            pendingLateHostPublish = LateHostPublishBaseline(
+                precedingText: baseline.precedingText,
+                elementIdentifier: baseline.elementIdentifier,
+                selectionLocation: baseline.selectionLocation,
+                keystrokeUptimeNanoseconds: baseline.keystrokeUptimeNanoseconds,
+                pollGeneration: pollGeneration
+            )
+            logStage(
+                "host-publish-ceiling-miss",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Host AX did not publish within \(Self.hostPublishWaitCeilingMs)ms; "
+                    + "standing down instead of generating against pre-keystroke text."
             )
             return
         }
@@ -350,6 +381,42 @@ extension SuggestionCoordinator {
                 elapsedMs: nextElapsed
             )
         }
+    }
+
+    /// Schedules a prediction when a late host publish finally moves AX past a ceiling-miss baseline.
+    /// Returns true when it consumed the snapshot for that purpose so the caller can skip overlay hide.
+    private func schedulePredictionForLateHostPublishIfNeeded(_ focusedContext: FocusedInputSnapshot) -> Bool {
+        guard let baseline = pendingLateHostPublish,
+              baseline.pollGeneration == hostPublishPollGeneration else {
+            pendingLateHostPublish = nil
+            return false
+        }
+
+        let textChanged = focusedContext.precedingText != baseline.precedingText
+        let elementChanged = focusedContext.elementIdentifier != baseline.elementIdentifier
+        let selectionChanged = focusedContext.selection.location != baseline.selectionLocation
+        guard textChanged || elementChanged || selectionChanged else {
+            return false
+        }
+
+        pendingLateHostPublish = nil
+        logStage(
+            "host-publish-late",
+            workID: currentWorkID,
+            generation: latestGenerationNumber,
+            message: "Host AX published after the poll ceiling; scheduling against post-keystroke text."
+        )
+        schedulePrediction(
+            consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
+        )
+        return true
+    }
+
+    private func endHostPublishCaptureIfCurrent(pollGeneration: UInt64) {
+        guard pollGeneration == hostPublishPollGeneration else {
+            return
+        }
+        focusModel.setHostPublishCaptureActive(false)
     }
 
     private static func elapsedMilliseconds(since uptimeNanoseconds: UInt64) -> Int {

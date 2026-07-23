@@ -24,6 +24,11 @@ extension SuggestionCoordinator {
         fullText: Bool,
         keyName: String
     ) -> Bool {
+        // Accept runs inside the consuming tap before the host has necessarily published any
+        // typeahead that landed since the last focus poll. A forced refresh keeps chunk prep /
+        // correction planning against the live field so we fail open (pass the key through) instead
+        // of inserting a stale tail or deleting the wrong typo suffix.
+        focusModel.refreshNow()
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -358,6 +363,11 @@ extension SuggestionCoordinator {
         keyName: String,
         rawContext: FocusedInputSnapshot
     ) -> Bool {
+        // `acceptSuggestion` already forced a refresh; re-read the snapshot in case a nested path
+        // mutated focus, then re-plan against that live preceding text before posting backspaces.
+        focusModel.refreshNow()
+        let livePrecedingText = focusModel.snapshot.context?.precedingText ?? rawContext.precedingText
+
         // Confirm the live field still ends with the exact word we offered to correct (tolerating
         // one trailing space the user pressed after it). Comparing the word itself, not just its
         // length, closes the window where a keystroke between the last AX poll and this Tab swapped
@@ -365,7 +375,7 @@ extension SuggestionCoordinator {
         // the wrong text.
         guard case let .correction(typoWord) = session.kind,
               let replacement = TypoCorrectionReplacementPlanner.plan(
-                  precedingText: rawContext.precedingText,
+                  precedingText: livePrecedingText,
                   expectedTypo: typoWord,
                   correctedWord: session.fullText,
                   requiresTrailingSpace: false
@@ -506,14 +516,19 @@ extension SuggestionCoordinator {
         let shouldAccept = postExhaustionAcceptanceState.consumeQueuedAccept()
         guard shouldAccept else { return }
         // A queued accept can still legitimately fail (the new continuation no longer reconciles with
-        // live AX, or insertion fails). `acceptSuggestion` cleans up its own state on failure, so log
-        // the rare miss for diagnosis instead of letting the swallowed Tab vanish without a trace.
+        // live AX, or insertion fails). The original Tab was already consumed while the window was
+        // armed, so fail-open by replaying a synthetic Tab to the host instead of permanently eating
+        // the key.
         if !acceptCurrentSuggestion() {
+            let replayed = suggestionInserter.replayTabKey()
             logStage(
                 "flush-queued-accept-failed",
                 workID: currentWorkID,
                 generation: latestGenerationNumber,
                 message: "Flushed a queued post-exhaustion Tab, but the follow-up acceptance returned false."
+                    + (replayed
+                        ? " Replayed Tab to the host."
+                        : " Tab replay failed; the original key remains consumed.")
             )
         }
     }

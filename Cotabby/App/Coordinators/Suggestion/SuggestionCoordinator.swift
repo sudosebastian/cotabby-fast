@@ -100,6 +100,12 @@ final class SuggestionCoordinator: ObservableObject {
     /// synchronous `refreshNow()` calls on the main actor. Bumping the token makes older chains
     /// no-op before they can perform another expensive AX read.
     var hostPublishPollGeneration: UInt64 = 0
+    /// Baseline retained when the host-publish poll hits its ceiling without observing an AX change.
+    /// Generating against that pre-keystroke snapshot produced ghost text that looked like Cotabby
+    /// swallowed the typed character; instead we stand down and let a later real publish (via the
+    /// focus timer) schedule against the post-keystroke text. Cleared on a new keystroke, cancel,
+    /// or a successful late-publish schedule.
+    var pendingLateHostPublish: LateHostPublishBaseline?
     /// Suppresses single-poll `Supported → Blocked → Supported` flicker on the same focused element
     /// so the overlay does not tear down and rebuild on every transient AX redraw. See
     /// `FocusCapabilityFlickerGate` for the rationale and the reproduction (Apple Calendar event
@@ -273,4 +279,15 @@ final class SuggestionCoordinator: ObservableObject {
     var currentWorkID: UInt64 {
         workController.currentWorkID
     }
+}
+
+/// AX state captured at keystroke time for the host-publish wait. Shared between the active poll
+/// chain and the late-publish arm so a publish that arrives after the ceiling can still schedule
+/// against the post-keystroke text instead of regenerating from a stale snapshot.
+struct LateHostPublishBaseline {
+    let precedingText: String?
+    let elementIdentifier: String?
+    let selectionLocation: Int?
+    let keystrokeUptimeNanoseconds: UInt64
+    let pollGeneration: UInt64
 }

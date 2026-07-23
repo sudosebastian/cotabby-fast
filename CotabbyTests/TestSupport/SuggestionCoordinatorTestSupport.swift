@@ -31,11 +31,26 @@ final class RigFocusProvider: SuggestionFocusProviding {
     var snapshot: FocusSnapshot
     private(set) var refreshCount = 0
     private(set) var transientCaretCacheInvalidations = 0
+    private(set) var hostPublishCaptureActiveRequests: [Bool] = []
+    /// When non-nil, `refreshIfStale` can skip `refreshNow`. Defaults to `0` after the first
+    /// refresh so host-publish polls exercise the reuse path in tests.
+    var simulatedMillisecondsSinceLastCapture: Int?
+    /// Invoked after each `refreshNow` with the new refresh count so tests can mutate the snapshot
+    /// mid-cycle (e.g. typeahead landing before an automatic-correction replace).
+    var onRefresh: ((Int) -> Void)?
+    private var hasRefreshed = false
 
     let snapshotSubject = PassthroughSubject<FocusSnapshot, Never>()
 
     var snapshotPublisher: AnyPublisher<FocusSnapshot, Never> {
         snapshotSubject.eraseToAnyPublisher()
+    }
+
+    var millisecondsSinceLastCapture: Int? {
+        if let simulatedMillisecondsSinceLastCapture {
+            return simulatedMillisecondsSinceLastCapture
+        }
+        return hasRefreshed ? 0 : nil
     }
 
     init(snapshot: FocusSnapshot) {
@@ -44,10 +59,16 @@ final class RigFocusProvider: SuggestionFocusProviding {
 
     func refreshNow() {
         refreshCount += 1
+        hasRefreshed = true
+        onRefresh?(refreshCount)
     }
 
     func invalidateTransientCaretCaches() {
         transientCaretCacheInvalidations += 1
+    }
+
+    func setHostPublishCaptureActive(_ active: Bool) {
+        hostPublishCaptureActiveRequests.append(active)
     }
 }
 
@@ -100,7 +121,9 @@ final class RigInserter: SuggestionInserting {
     var lastErrorMessage: String?
     var insertedChunks: [String] = []
     var replacements: [(deleteCount: Int, text: String)] = []
+    private(set) var replayTabCallCount = 0
     var shouldInsert = true
+    var shouldReplayTab = true
 
     func insert(_ suggestion: String) -> Bool {
         insertedChunks.append(suggestion)
@@ -110,6 +133,11 @@ final class RigInserter: SuggestionInserting {
     func replace(deletingUTF16Count: Int, with text: String) -> Bool {
         replacements.append((deletingUTF16Count, text))
         return shouldInsert
+    }
+
+    func replayTabKey() -> Bool {
+        replayTabCallCount += 1
+        return shouldReplayTab
     }
 }
 

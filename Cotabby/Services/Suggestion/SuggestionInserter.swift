@@ -186,6 +186,33 @@ final class SuggestionInserter {
         return true
     }
 
+    /// Virtual key code for Tab. Used when Cotabby already consumed the original accept key during
+    /// the post-exhaustion window but the follow-up accept failed — fail-open by giving the host a
+    /// synthetic Tab instead of permanently eating the keystroke.
+    private static let tabKeyCode: CGKeyCode = 0x30
+
+    /// Posts a synthetic Tab marked so both taps ignore it by identity. The accept tap must not
+    /// re-consume this replay; the host should see a normal Tab after Cotabby stood down.
+    func replayTabKey() -> Bool {
+        guard let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: Self.tabKeyCode, keyDown: true),
+              let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: Self.tabKeyCode, keyDown: false) else {
+            lastErrorMessage = "Unable to create a synthetic Tab event."
+            CotabbyLogger.suggestion.error("Failed to create synthetic Tab events for accept-key replay")
+            return false
+        }
+
+        suppressionController.markSynthetic(keyDownEvent)
+        suppressionController.markSynthetic(keyUpEvent)
+        // One keydown token so the listen-only observer does not treat the replay as user typing
+        // that would invalidate a freshly applied continuation still settling through AX.
+        suppressionController.registerSyntheticInsertion(expectedKeyDownCount: 1)
+        keyDownEvent.post(tap: .cghidEventTap)
+        keyUpEvent.post(tap: .cghidEventTap)
+        lastErrorMessage = nil
+        CotabbyLogger.suggestion.debug("Replayed synthetic Tab to the host after a failed queued accept")
+        return true
+    }
+
     /// Commits `text` by placing it on the pasteboard and synthesizing Cmd-V, then restoring the
     /// user's clipboard shortly after. Returns false (having already restored the clipboard) if any
     /// synthetic event could not be created, so the caller falls back to keystroke insertion. The

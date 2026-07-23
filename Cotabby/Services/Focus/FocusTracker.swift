@@ -52,6 +52,10 @@ final class FocusTracker {
     // pure `FocusPollBackoff` so they can be unit-tested without a live timer.
     private var backoff = FocusPollBackoff()
 
+    /// When true, timer ticks skip the full AX walk because the host-publish poll already owns
+    /// freshness for the current keystroke. Explicit `refreshNow()` / `refreshIfStale` still run.
+    private var isHostPublishCaptureActive = false
+
     // Cached element resolved via cursor hit-testing for Chromium OOPIF editors (e.g. Gmail
     // compose) that the system-wide focused-element query cannot see. Re-validated each tick via
     // AXFocused and dropped the instant it loses focus or the frontmost app changes, so it never
@@ -185,8 +189,19 @@ final class FocusTracker {
     /// is re-armed to a longer interval, so an idle machine stops waking ~12.5x/second only to skip
     /// the walk it would not run anyway. That wasteful wake was the dominant idle cost in #280.
     private func handleTimerTick() {
+        // Host-publish poll is already refreshing on this keystroke; a stacked timer walk would only
+        // contend for MainActor with the same AX IPC cost and no fresher signal.
+        guard !isHostPublishCaptureActive else {
+            return
+        }
         backoff.recordCapture(didChange: performCaptureAndPublish())
         rescheduleTimerIfIntervalChanged()
+    }
+
+    /// Lets the suggestion coordinator claim (or release) exclusive capture ownership for the
+    /// host-publish wait window. Timer ticks no-op while active; explicit refreshes still run.
+    func setHostPublishCaptureActive(_ active: Bool) {
+        isHostPublishCaptureActive = active
     }
 
     /// Uptime stamp of the most recent completed capture (timer tick or explicit refresh).

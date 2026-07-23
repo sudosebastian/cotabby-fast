@@ -382,6 +382,35 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         }
     }
 
+    func test_queuedPostExhaustionAcceptFailureReplaysTabToHost() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+            let interactionState = SuggestionInteractionState()
+            // No active session: flush will call acceptCurrentSuggestion, which fails open.
+            let inputMonitor = StubSuggestionInputMonitor()
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: .hidden(reason: "test"),
+                inputMonitor: inputMonitor,
+                inserter: inserter,
+                interactionState: interactionState
+            )
+            coordinator.postExhaustionAcceptanceState.arm()
+            coordinator.postExhaustionAcceptanceState.queueAcceptIfArmed()
+
+            coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
+
+            XCTAssertTrue(inserter.insertedChunks.isEmpty, "Failed flush must not insert a chunk")
+            XCTAssertEqual(
+                inserter.replayTabCallCount,
+                1,
+                "A queued Tab that cannot accept must be replayed to the host instead of eaten."
+            )
+            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
+        }
+    }
+
     /// A cached suggestion consistent with the live text must re-show without any engine call.
     /// The stub engine throws on every generation, so reaching `.ready` proves the restore path
     /// satisfied the prediction cycle on its own.
@@ -588,7 +617,9 @@ private final class StubSuggestionInserter: SuggestionInserting {
     var lastErrorMessage: String?
     var insertedChunks: [String] = []
     var replacements: [(deleteCount: Int, text: String)] = []
+    private(set) var replayTabCallCount = 0
     var shouldInsert = true
+    var shouldReplayTab = true
 
     func insert(_ suggestion: String) -> Bool {
         insertedChunks.append(suggestion)
@@ -598,6 +629,11 @@ private final class StubSuggestionInserter: SuggestionInserting {
     func replace(deletingUTF16Count: Int, with text: String) -> Bool {
         replacements.append((deletingUTF16Count, text))
         return shouldInsert
+    }
+
+    func replayTabKey() -> Bool {
+        replayTabCallCount += 1
+        return shouldReplayTab
     }
 }
 

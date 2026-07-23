@@ -313,6 +313,28 @@ final class SuggestionInteractionStateTests: XCTestCase {
         }
     }
 
+    func test_advanceIfTypedCharactersMatchKeepsPendingInsertionSentinelInSync() {
+        runOnMainActor {
+            let state = makeState()
+            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+            let session = state.startSession(fullText: " world again", liveContext: context, latency: 0.1)
+            _ = state.commitAcceptedChunk(" ", liveContext: context, session: session)
+            XCTAssertEqual(state.pendingInsertionConsumedCount, 1)
+
+            let advanced = state.advanceIfTypedCharactersMatch(
+                "w",
+                expectedSession: state.activeSession!
+            )
+
+            XCTAssertEqual(advanced?.acceptedText, " w")
+            XCTAssertEqual(
+                state.pendingInsertionConsumedCount,
+                advanced?.consumedCharacterCount,
+                "Typed-match must advance the AX-lag sentinel with the session so Tab+type cannot false-invalidate."
+            )
+        }
+    }
+
     @MainActor
     private func makeState() -> SuggestionInteractionState {
         let state = SuggestionInteractionState()

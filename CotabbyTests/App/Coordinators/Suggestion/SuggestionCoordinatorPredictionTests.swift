@@ -236,6 +236,40 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         XCTAssertTrue(rig.engine.requests.isEmpty)
     }
 
+    func test_typoGate_automaticFixAbortsWhenTypeaheadDivergesBeforeReplace() async {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve "),
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
+                debounceMilliseconds: 1,
+                suppressCompletionsOnTypo: true,
+                offerTypoCorrections: true,
+                automaticallyFixTypos: true
+            )
+        ))
+
+        // `generateFromCurrentFocus` refreshes once before the typo gate; `applyAutomaticCorrection`
+        // refreshes again before planning. Mutate only on that second refresh so the gate still
+        // chooses auto-fix, then the planner sees typeahead and refuses the backspace burst.
+        rig.focusProvider.onRefresh = { [weak focusProvider = rig.focusProvider] count in
+            guard count >= 2, let focusProvider else { return }
+            let diverged = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve w")
+            focusProvider.snapshot = FocusSnapshot(
+                applicationName: diverged.applicationName,
+                bundleIdentifier: diverged.bundleIdentifier,
+                capability: .supported,
+                context: diverged
+            )
+        }
+
+        await rig.coordinator.generateFromCurrentFocus(workID: rig.coordinator.currentWorkID)
+
+        XCTAssertTrue(
+            rig.inserter.replacements.isEmpty,
+            "Automatic correction must not delete characters when AX shows the user already typed ahead."
+        )
+        XCTAssertEqual(rig.coordinator.state, .idle)
+    }
+
     // MARK: - Environment reconciliation
 
     func test_reconcileWithCurrentEnvironment_reenablesOnceTheBlockerClears() {

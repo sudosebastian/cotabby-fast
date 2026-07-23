@@ -37,6 +37,10 @@ protocol SuggestionFocusProviding: AnyObject {
     /// provider-side caches built from pre-mutation reads must not serve the next capture.
     /// Providers without such caches use the default no-op.
     func invalidateTransientCaretCaches()
+
+    /// While the host-publish poll owns freshness for a keystroke, the focus timer should skip
+    /// redundant full AX walks so MainActor is not paying stacked captures. Test fakes no-op.
+    func setHostPublishCaptureActive(_ active: Bool)
 }
 
 extension SuggestionFocusProviding {
@@ -46,6 +50,9 @@ extension SuggestionFocusProviding {
 
     /// Default: nothing cached, nothing to invalidate.
     func invalidateTransientCaretCaches() {}
+
+    /// Default: no timer to defer.
+    func setHostPublishCaptureActive(_ active: Bool) {}
 
     /// Refreshes only when the last capture is older than `maxAgeMilliseconds`. The suggestion
     /// pipeline performs several captures per keystroke (host-publish poll, post-debounce check,
@@ -210,6 +217,15 @@ protocol SuggestionInserting: AnyObject {
     /// burst. The correction-acceptance path uses this to swap a typo'd word for the corrected word.
     /// `SuggestionInserter` already implements it (the emoji picker shares the same primitive).
     func replace(deletingUTF16Count: Int, with text: String) -> Bool
+
+    /// Replays a Tab keydown/keyup to the host after Cotabby already consumed the original key
+    /// (post-exhaustion queue) but the follow-up accept failed. Marked synthetic so the accept tap
+    /// does not re-consume it. Default no-op for test doubles that only assert insert/replace.
+    func replayTabKey() -> Bool
+}
+
+extension SuggestionInserting {
+    func replayTabKey() -> Bool { false }
 }
 
 /// The emoji picker's slice of the inserter: replace a run of already-typed characters (the literal

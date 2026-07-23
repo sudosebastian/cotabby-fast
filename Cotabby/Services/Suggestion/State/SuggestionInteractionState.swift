@@ -240,6 +240,11 @@ final class SuggestionInteractionState {
     }
 
     /// Advances the stored session when the user typed the next expected characters directly.
+    ///
+    /// When a synthetic accept left `pendingInsertionConsumedCount` armed for Chromium AX lag, typed
+    /// match must advance that sentinel in lockstep with `consumedCharacterCount`. Otherwise
+    /// reconcile treats the typed advance as still "awaiting the old insert" and can false-invalidate
+    /// the session on the next Tab+type race.
     func advanceIfTypedCharactersMatch(
         _ typedCharacters: String,
         expectedSession: ActiveSuggestionSession
@@ -252,6 +257,14 @@ final class SuggestionInteractionState {
               )
         else {
             return nil
+        }
+
+        if pendingInsertionConsumedCount != nil {
+            if advancedSession.isExhausted {
+                pendingInsertionConsumedCount = nil
+            } else {
+                pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
+            }
         }
 
         self.activeSession = advancedSession
