@@ -42,6 +42,7 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
         let first = SuggestionQualityMetricsStore(userDefaults: defaults)
         first.recordShown()
         first.recordSuppressed(reason: "emptyGeneration")
+        first.flushPendingPersistence()
 
         let second = SuggestionQualityMetricsStore(userDefaults: defaults)
         XCTAssertEqual(second.counters.shown, 1)

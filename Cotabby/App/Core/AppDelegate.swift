@@ -231,6 +231,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputMonitor.stop()
         focusModel.stop()
 
+        // Metrics stores debounce disk writes; flush before tearing down so the last tracked
+        // generations and quality counters survive the quit.
+        environment.performanceMetricsStore.flushPendingPersistence()
+        environment.qualityMetricsStore.flushPendingPersistence()
+
         runtimeModel.shutdownSync(timeoutSeconds: 1.5)
     }
 

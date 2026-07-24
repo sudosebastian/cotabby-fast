@@ -69,6 +69,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
             XCTAssertEqual(store.entries.first?.latencyMs, 230)
             XCTAssertEqual(store.entries.first?.timestamp, exactDate())
 
+            store.flushPendingPersistence()
             XCTAssertEqual(decodePersistedEntries(from: userDefaults), store.entries)
         }
     }
@@ -86,6 +87,7 @@ final class PerformanceMetricsStoreTests: XCTestCase {
             XCTAssertEqual(store.entries.count, cap)
             XCTAssertEqual(store.entries.first?.latencyMs, 5, "Oldest five entries should have fallen off")
             XCTAssertEqual(store.entries.last?.latencyMs, cap + 4)
+            store.flushPendingPersistence()
             XCTAssertEqual(decodePersistedEntries(from: userDefaults), store.entries, "Persisted blob mirrors the cap")
         }
     }
@@ -128,6 +130,24 @@ final class PerformanceMetricsStoreTests: XCTestCase {
         runOnMainActor {
             let store = makeStore(userDefaults: userDefaults)
             XCTAssertTrue(store.entries.isEmpty)
+        }
+    }
+
+    func test_record_debouncesDiskWritesUntilFlush() {
+        let userDefaults = makeUserDefaults()
+
+        runOnMainActor {
+            let store = makeStore(userDefaults: userDefaults)
+            store.record(modelName: "model", latencyMs: 10, timestamp: exactDate())
+
+            XCTAssertEqual(store.entries.count, 1)
+            XCTAssertNil(
+                userDefaults.data(forKey: Self.entriesKey),
+                "Disk write must wait for the debounce window or an explicit flush."
+            )
+
+            store.flushPendingPersistence()
+            XCTAssertEqual(decodePersistedEntries(from: userDefaults), store.entries)
         }
     }
 

@@ -32,19 +32,25 @@ final class PerformanceMetricsStore: ObservableObject {
     /// virtualization, so growing this past a few hundred would require revisiting the pane.
     static let maximumEntries = 100
 
+    /// How long to coalesce UserDefaults writes during rapid typing. In-memory `@Published`
+    /// entries update immediately for the Performance pane; disk sync waits so encode+write
+    /// never sits on the suggestion completion path for every keystroke.
+    static let persistenceDebounceSeconds: TimeInterval = 2.0
+
     @Published private(set) var entries: [PerformanceMetricEntry]
 
     private let userDefaults: UserDefaults
     private static let entriesDefaultsKey = "cotabbyPerformanceMetricEntries"
+    private var pendingPersistWorkItem: DispatchWorkItem?
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         entries = Self.loadEntries(from: userDefaults)
     }
 
-    /// Append a new metric and drop the oldest entries above the cap. Persists after every record
-    /// because the cap keeps the JSON blob small (well under 10 KB) and the write happens at most
-    /// once per LLM request — far below any debouncing threshold.
+    /// Append a new metric and drop the oldest entries above the cap. Updates memory immediately;
+    /// persistence is debounced so a burst of tracked generations does not encode JSON on every
+    /// completion.
     func record(modelName: String, latencyMs: Int, timestamp: Date = Date()) {
         let entry = PerformanceMetricEntry(
             timestamp: timestamp,
@@ -57,13 +63,35 @@ final class PerformanceMetricsStore: ObservableObject {
             updated.removeFirst(updated.count - Self.maximumEntries)
         }
         entries = updated
-        persist(updated)
+        schedulePersist(updated)
     }
 
     func clear() {
+        pendingPersistWorkItem?.cancel()
+        pendingPersistWorkItem = nil
         guard !entries.isEmpty else { return }
         entries = []
         userDefaults.removeObject(forKey: Self.entriesDefaultsKey)
+    }
+
+    /// Flushes any pending disk write immediately. Call from app termination / backgrounding so
+    /// the last few tracked requests are not lost to debounce cancellation.
+    func flushPendingPersistence() {
+        pendingPersistWorkItem?.cancel()
+        pendingPersistWorkItem = nil
+        persist(entries)
+    }
+
+    private func schedulePersist(_ entries: [PerformanceMetricEntry]) {
+        pendingPersistWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.persist(entries)
+        }
+        pendingPersistWorkItem = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.persistenceDebounceSeconds,
+            execute: work
+        )
     }
 
     private func persist(_ entries: [PerformanceMetricEntry]) {

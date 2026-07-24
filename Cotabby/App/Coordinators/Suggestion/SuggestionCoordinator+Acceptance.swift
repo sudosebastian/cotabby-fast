@@ -25,10 +25,10 @@ extension SuggestionCoordinator {
         keyName: String
     ) -> Bool {
         // Accept runs inside the consuming tap before the host has necessarily published any
-        // typeahead that landed since the last focus poll. A forced refresh keeps chunk prep /
-        // correction planning against the live field so we fail open (pass the key through) instead
-        // of inserting a stale tail or deleting the wrong typo suffix.
-        focusModel.refreshNow()
+        // typeahead that landed since the last focus poll. Prefer a fresh-enough capture over a
+        // forced walk so rapid Tab does not stack AX IPC on every accept; refreshIfStale still
+        // forces a read when the snapshot is older than one focus-poll window.
+        focusModel.refreshIfStale(maxAgeMilliseconds: 30)
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -363,9 +363,10 @@ extension SuggestionCoordinator {
         keyName: String,
         rawContext: FocusedInputSnapshot
     ) -> Bool {
-        // `acceptSuggestion` already forced a refresh; re-read the snapshot in case a nested path
-        // mutated focus, then re-plan against that live preceding text before posting backspaces.
-        focusModel.refreshNow()
+        // `acceptSuggestion` already refreshed if stale; only force another capture when the
+        // snapshot aged out during correction planning. Re-plan against that live preceding text
+        // before posting backspaces.
+        focusModel.refreshIfStale(maxAgeMilliseconds: 30)
         let livePrecedingText = focusModel.snapshot.context?.precedingText ?? rawContext.precedingText
 
         // Confirm the live field still ends with the exact word we offered to correct (tolerating

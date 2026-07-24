@@ -23,6 +23,20 @@ final class SuggestionLatencyDefaultsTests: XCTestCase {
         XCTAssertEqual(LlamaRuntimeConfiguration.default.gpuLayerCount, -1)
     }
 
+    func test_latencyFirstPreferredModelOrderPutsSmallerQwenFirst() {
+        XCTAssertEqual(
+            LlamaRuntimeConfiguration.default.preferredModelNames.first,
+            "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"
+        )
+        XCTAssertEqual(
+            Array(LlamaRuntimeConfiguration.default.preferredModelNames.prefix(2)),
+            [
+                "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+                "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"
+            ]
+        )
+    }
+
     func test_fourToSevenEnglishBudgetStaysNearTenTokens() {
         let tokens = SuggestionWordRange.predictionTokenBudget(
             highWords: SuggestionWordCountPreset.fourToSeven.range.highWords,

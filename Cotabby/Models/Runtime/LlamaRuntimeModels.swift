@@ -155,13 +155,14 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
     let gpuLayerCount: Int32
 
     /// Order matters here: the locator picks the first GGUF that exists.
-    /// This list defines priority for known models; user-added GGUF files are still discoverable.
+    /// Latency-first preference: smaller Qwen bases before Gemma. Users who already selected a
+    /// specific model keep that choice via persisted filename; this only affects first discovery.
     static let `default` = LlamaRuntimeConfiguration(
         runtimeDirectoryPath: nil,
         preferredModelNames: [
-            "gemma-4-E2B.i1-Q6_K.gguf",
-            "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
             "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+            "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
+            "gemma-4-E2B.i1-Q6_K.gguf",
             "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
         // 1536 is enough for the capped ~1024-token prompt plus short decode, and keeps the KV

@@ -35,6 +35,10 @@ final class SuggestionQualityMetricsStore: ObservableObject {
 
     private let userDefaults: UserDefaults
     private static let defaultsKey = "cotabbyQualityMetricsCounters"
+    /// Coalesce disk writes during rapid generate/show/suppress/accept bursts. Counters update
+    /// in memory immediately; JSON encode+UserDefaults wait for a quiet window.
+    static let persistenceDebounceSeconds: TimeInterval = 2.0
+    private var pendingPersistWorkItem: DispatchWorkItem?
 
     /// Stored-property @MainActor classes deallocated inside app-hosted tests double-free without
     /// an explicitly nonisolated deinit (the isolated-deinit runtime path over-releases). Same
@@ -68,8 +72,17 @@ final class SuggestionQualityMetricsStore: ObservableObject {
     }
 
     func reset() {
+        pendingPersistWorkItem?.cancel()
+        pendingPersistWorkItem = nil
         counters = Counters()
         userDefaults.removeObject(forKey: Self.defaultsKey)
+    }
+
+    /// Flushes any pending disk write immediately so lifetime counters survive termination.
+    func flushPendingPersistence() {
+        pendingPersistWorkItem?.cancel()
+        pendingPersistWorkItem = nil
+        persist(counters)
     }
 
     private func mutate(_ change: (inout Counters) -> Void) {
@@ -79,7 +92,23 @@ final class SuggestionQualityMetricsStore: ObservableObject {
             updated.firstRecordedAt = Date()
         }
         counters = updated
-        if let data = try? JSONEncoder().encode(updated) {
+        schedulePersist(updated)
+    }
+
+    private func schedulePersist(_ counters: Counters) {
+        pendingPersistWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.persist(counters)
+        }
+        pendingPersistWorkItem = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.persistenceDebounceSeconds,
+            execute: work
+        )
+    }
+
+    private func persist(_ counters: Counters) {
+        if let data = try? JSONEncoder().encode(counters) {
             userDefaults.set(data, forKey: Self.defaultsKey)
         }
     }

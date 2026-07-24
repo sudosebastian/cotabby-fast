@@ -173,16 +173,25 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
 
         defer {
+            // Skip when the cancel path already destroyed this sequence — trim/destroy against a
+            // recycled slot would race the next request's createSequence.
+            guard autocompleteSequenceID == sequenceID else {
+                return
+            }
             // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
-            // trim leaves the sampled tokens in KV while the tracker records prompt-only state;
-            // that mismatch self-heals (the next reuse trim is rejected too and rebuilds fresh),
-            // but it also proves this model can never reuse, so remember that for `prefill`.
+            // trim leaves the sampled tokens in KV while the tracker records prompt-only state.
+            // Destroy immediately so the next generate builds fresh without a doomed trim attempt,
+            // and remember that prefills for this model are pointless.
             if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
                 modelRejectsPartialTrims = true
+                engine.destroySequence(sequenceID)
+                autocompleteSequenceID = -1
+                logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
+            } else {
+                autocompletePromptBytes = preparation.promptBytes
+                autocompletePromptTokens = preparation.promptTokens
+                autocompleteSamplingFingerprint = preparation.fingerprint
             }
-            autocompletePromptBytes = preparation.promptBytes
-            autocompletePromptTokens = preparation.promptTokens
-            autocompleteSamplingFingerprint = preparation.fingerprint
         }
 
         // The KV-trim defer above runs after the decoder returns, restoring prompt-only KV state for
@@ -553,7 +562,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
     ) throws -> Int32 {
-        if autocompleteSequenceID >= 0,
+        // Hybrid/SWA catalog models reject every partial trim. Scanning for a reusable prefix and
+        // calling trimKV just burns work before the inevitable fresh build, so skip straight there
+        // once the model has taught us it cannot reuse.
+        if !modelRejectsPartialTrims,
+           autocompleteSequenceID >= 0,
            let cachedPrefixBytes, cachedPrefixBytes > 0,
            autocompleteSamplingFingerprint == fingerprint {
 
@@ -621,6 +634,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                         return autocompleteSequenceID
                     }
 
+                    modelRejectsPartialTrims = true
                     logTrimRejectionIfNeeded(reusableTokenCount: reusableTokenCount)
                 }
             }

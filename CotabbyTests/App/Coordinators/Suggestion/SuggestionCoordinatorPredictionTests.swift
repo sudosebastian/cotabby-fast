@@ -502,4 +502,21 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         rig.coordinator.schedulePredictionForCurrentFocusIfPossible(matching: otherIdentity)
         XCTAssertEqual(rig.coordinator.state, .idle, "A different field must not reschedule")
     }
+
+    func test_visualContextReady_defersWhenSuggestionAlreadyVisible() {
+        let rig = retained(makeCoordinatorRig())
+        let context = FocusedInputContext(snapshot: rig.focusProvider.snapshot.context!, generation: 1)
+        _ = rig.interactionState.startSession(fullText: " world", liveContext: context, latency: 0.05)
+        rig.overlayController.showSuggestion(" world", geometry: CotabbyTestFixtures.overlayGeometry())
+        rig.coordinator.state = .ready(text: " world", latency: 0.05)
+
+        let requestsBefore = rig.engine.requests.count
+        rig.coordinator.schedulePredictionForCurrentFocusIfPossible(
+            matching: rig.focusProvider.snapshot.context!.identity
+        )
+
+        XCTAssertEqual(rig.coordinator.state, .ready(text: " world", latency: 0.05))
+        XCTAssertEqual(rig.engine.requests.count, requestsBefore, "Must not kick off a duplicate generation")
+        XCTAssertNotEqual(rig.coordinator.state, .debouncing)
+    }
 }
