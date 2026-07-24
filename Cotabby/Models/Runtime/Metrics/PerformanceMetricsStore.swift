@@ -9,20 +9,38 @@ import Logging
 /// only when the user has enabled performance tracking in Settings, so the default user pays no
 /// storage or write cost.
 
-/// One recorded LLM request — kept intentionally narrow: just the three fields the
-/// Performance pane shows. Codable so the whole array round-trips through UserDefaults
-/// as a JSON blob.
+/// One recorded LLM request — kept intentionally narrow for the Performance pane, with optional
+/// llama timing fields so TTFT/prefill/decode/reuse stay diagnosable when present. Codable so the
+/// whole array round-trips through UserDefaults as a JSON blob; new optional fields default to nil
+/// for older persisted rows.
 struct PerformanceMetricEntry: Identifiable, Codable, Equatable, Hashable {
     let id: UUID
     let timestamp: Date
     let modelName: String
     let latencyMs: Int
+    let prefillMs: Int?
+    let decodeMs: Int?
+    let timeToFirstPartialMs: Int?
+    let reuseMode: String?
 
-    init(id: UUID = UUID(), timestamp: Date = Date(), modelName: String, latencyMs: Int) {
+    init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        modelName: String,
+        latencyMs: Int,
+        prefillMs: Int? = nil,
+        decodeMs: Int? = nil,
+        timeToFirstPartialMs: Int? = nil,
+        reuseMode: String? = nil
+    ) {
         self.id = id
         self.timestamp = timestamp
         self.modelName = modelName
         self.latencyMs = latencyMs
+        self.prefillMs = prefillMs
+        self.decodeMs = decodeMs
+        self.timeToFirstPartialMs = timeToFirstPartialMs
+        self.reuseMode = reuseMode
     }
 }
 
@@ -51,11 +69,20 @@ final class PerformanceMetricsStore: ObservableObject {
     /// Append a new metric and drop the oldest entries above the cap. Updates memory immediately;
     /// persistence is debounced so a burst of tracked generations does not encode JSON on every
     /// completion.
-    func record(modelName: String, latencyMs: Int, timestamp: Date = Date()) {
+    func record(
+        modelName: String,
+        latencyMs: Int,
+        timestamp: Date = Date(),
+        timing: LlamaGenerationTiming? = nil
+    ) {
         let entry = PerformanceMetricEntry(
             timestamp: timestamp,
             modelName: modelName,
-            latencyMs: latencyMs
+            latencyMs: latencyMs,
+            prefillMs: timing?.prefillMs,
+            decodeMs: timing?.decodeMs,
+            timeToFirstPartialMs: timing?.timeToFirstPartialMs,
+            reuseMode: timing?.reuseMode.rawValue
         )
         var updated = entries
         updated.append(entry)

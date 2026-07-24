@@ -13,18 +13,22 @@ struct SuggestionResult: Equatable, Sendable {
     /// type, and so engine-specific reasons can ride along without enum churn. The explicit
     /// initializer default keeps existing call sites compiling unchanged.
     let suppressionReason: String?
+    /// Llama-only prefill/decode/TTFT breakdown when the open-source engine produced this result.
+    let timing: LlamaGenerationTiming?
 
     init(
         generation: UInt64,
         rawText: String,
         text: String,
         latency: TimeInterval,
-        suppressionReason: String? = nil
+        suppressionReason: String? = nil,
+        timing: LlamaGenerationTiming? = nil
     ) {
         self.generation = generation
         self.rawText = rawText
         self.text = text
         self.latency = latency
         self.suppressionReason = suppressionReason
+        self.timing = timing
     }
 }

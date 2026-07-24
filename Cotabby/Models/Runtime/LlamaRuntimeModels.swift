@@ -249,7 +249,21 @@ struct LlamaGenerationOutput: Equatable, Sendable {
     let averageLogprob: Double?
     /// True when the completion was withheld because `averageLogprob` fell below the floor.
     let suppressedByLowConfidence: Bool
+    /// Prefill/decode/TTFT breakdown for latency debugging. Nil only for synthetic test fixtures
+    /// that construct an output without going through the runtime.
+    let timing: LlamaGenerationTiming?
 
+    init(
+        text: String,
+        averageLogprob: Double?,
+        suppressedByLowConfidence: Bool,
+        timing: LlamaGenerationTiming? = nil
+    ) {
+        self.text = text
+        self.averageLogprob = averageLogprob
+        self.suppressedByLowConfidence = suppressedByLowConfidence
+        self.timing = timing
+    }
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.

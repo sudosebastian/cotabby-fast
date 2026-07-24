@@ -78,7 +78,11 @@ final class SuggestionEngineRouter {
         case .llamaOpenSource:
             CotabbyLogger.suggestion.debug("Routing to open-source llama engine", metadata: metadata)
             let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
-            recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
+            recordPerformanceMetric(
+                modelName: llamaModelNameProvider() ?? "Llama",
+                latency: result.latency,
+                timing: result.timing
+            )
             recordQualityOutcome(result)
             return result
         case .openAICompatible:
@@ -106,10 +110,14 @@ final class SuggestionEngineRouter {
     /// Performance pane toggle is on. The router is the right home for this seam because it is
     /// the single point that sees a finished `SuggestionResult` and knows which engine produced
     /// it — every backend would otherwise need to take a dependency on the metrics store.
-    private func recordPerformanceMetric(modelName: String, latency: TimeInterval) {
+    private func recordPerformanceMetric(
+        modelName: String,
+        latency: TimeInterval,
+        timing: LlamaGenerationTiming? = nil
+    ) {
         guard suggestionSettings.isPerformanceTrackingEnabled else { return }
         let latencyMs = Int((latency * 1000).rounded())
-        performanceMetricsStore.record(modelName: modelName, latencyMs: latencyMs)
+        performanceMetricsStore.record(modelName: modelName, latencyMs: latencyMs, timing: timing)
     }
 
     private func engineMetadataLabel(for kind: SuggestionEngineKind) -> String {
@@ -156,7 +164,11 @@ final class SuggestionEngineRouter {
     ) async throws -> SuggestionResult {
         do {
             let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
-            recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
+            recordPerformanceMetric(
+                modelName: llamaModelNameProvider() ?? "Llama",
+                latency: result.latency,
+                timing: result.timing
+            )
             recordQualityOutcome(result)
             return result
         } catch SuggestionClientError.cancelled {

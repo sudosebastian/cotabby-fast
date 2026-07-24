@@ -87,6 +87,41 @@ final class LlamaSuggestionEngine {
         await task.value
     }
 
+    /// After a hybrid/SWA generate destroys its sequence (failed post-decode trim), re-prefill the
+    /// same prompt without awaiting so a subsequent keystroke that extends the prompt can use the
+    /// append-only extend path. No-op when trim reuse already left a prompt-only sequence.
+    private func schedulePostGenerateRewarm(for request: SuggestionRequest) {
+        guard runtimeManager.rejectsPartialKVTrims else { return }
+        inflightPrewarmTask?.cancel()
+        let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
+        let options = Self.makeGenerationOptions(for: request)
+        let prompt = Self.effectivePrompt(
+            for: request,
+            rejectsPartialKVTrims: true
+        )
+        let task = Task { [weak self, runtimeManager] in
+            do {
+                try await runtimeManager.prefill(
+                    prompt: prompt,
+                    cachedPrefixBytes: cachedPrefixBytes,
+                    options: options
+                )
+                guard !Task.isCancelled else { return }
+                self?.promptCacheHintTracker.recordSuccessfulRequest(request)
+                CotabbyLogger.suggestion.debug(
+                    "Llama post-generate rewarm ready for extend",
+                    metadata: ["request_id": .string(request.requestID), "engine": .string("llama")]
+                )
+            } catch {
+                CotabbyLogger.suggestion.debug(
+                    "Llama post-generate rewarm skipped: \(error.localizedDescription)",
+                    metadata: ["request_id": .string(request.requestID), "engine": .string("llama")]
+                )
+            }
+        }
+        inflightPrewarmTask = task
+    }
+
     /// Executes one generation request and packages the raw and normalized result for the coordinator.
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
         try await generateSuggestion(for: request, onPartial: nil)
@@ -194,28 +229,41 @@ final class LlamaSuggestionEngine {
                     "latency_ms": .stringConvertible(latencyMs)
                 ]) { _, new in new }
             )
-            CotabbyLogger.llmIO.debug(
-                "llama generation",
-                metadata: baseMetadata.merging([
-                    "prompt": .string(request.prompt),
-                    "completion_raw": .string(rawSuggestion),
-                    "completion_normalized": .string(normalizedSuggestion),
-                    "prompt_bytes": .stringConvertible(request.prompt.utf8.count),
-                    "raw_chars": .stringConvertible(rawChars),
-                    "normalized_chars": .stringConvertible(normalizedChars),
-                    "suppression_reason": .string(suppressionReason),
-                    "avg_logprob": .string(averageLogprobDescription),
-                    "latency_ms": .stringConvertible(latencyMs),
-                    "cache_hint_bytes": .string(hintDesc),
-                    "max_tokens": .stringConvertible(request.maxPredictionTokens)
-                ]) { _, new in new }
-            )
+            var llmIOMetadata = baseMetadata
+            llmIOMetadata["prompt"] = .string(request.prompt)
+            llmIOMetadata["completion_raw"] = .string(rawSuggestion)
+            llmIOMetadata["completion_normalized"] = .string(normalizedSuggestion)
+            llmIOMetadata["prompt_bytes"] = .stringConvertible(request.prompt.utf8.count)
+            llmIOMetadata["raw_chars"] = .stringConvertible(rawChars)
+            llmIOMetadata["normalized_chars"] = .stringConvertible(normalizedChars)
+            llmIOMetadata["suppression_reason"] = .string(suppressionReason)
+            llmIOMetadata["avg_logprob"] = .string(averageLogprobDescription)
+            llmIOMetadata["latency_ms"] = .stringConvertible(latencyMs)
+            llmIOMetadata["cache_hint_bytes"] = .string(hintDesc)
+            llmIOMetadata["max_tokens"] = .stringConvertible(request.maxPredictionTokens)
+            if let timing = output.timing {
+                llmIOMetadata["prefill_ms"] = .stringConvertible(timing.prefillMs)
+                llmIOMetadata["decode_ms"] = .stringConvertible(timing.decodeMs)
+                llmIOMetadata["ttft_ms"] = .string(
+                    timing.timeToFirstPartialMs.map(String.init) ?? "none"
+                )
+                llmIOMetadata["reuse_mode"] = .string(timing.reuseMode.rawValue)
+                llmIOMetadata["prompt_tokens"] = .stringConvertible(timing.promptTokenCount)
+                llmIOMetadata["generated_tokens"] = .stringConvertible(timing.generatedTokenCount)
+            }
+            CotabbyLogger.llmIO.debug("llama generation", metadata: llmIOMetadata)
+            // Hybrid/SWA generates destroy the sequence after a failed post-decode trim. Rewarm the
+            // same prompt in the background so the next keystroke (which usually extends this
+            // prompt) can append-only-extend instead of paying another full prefill. Fire-and-
+            // forget: awaiting would add the rewarm to this request's latency.
+            schedulePostGenerateRewarm(for: request)
             return SuggestionResult(
                 generation: request.generation,
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
                 latency: latency,
-                suppressionReason: normalization.suppression?.rawValue
+                suppressionReason: normalization.suppression?.rawValue,
+                timing: output.timing
             )
         } catch is CancellationError {
             CotabbyLogger.suggestion.debug("Llama generation cancelled", metadata: baseMetadata)

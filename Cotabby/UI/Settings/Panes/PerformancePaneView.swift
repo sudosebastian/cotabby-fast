@@ -24,8 +24,8 @@ struct PerformancePaneView: View {
                 Toggle(isOn: trackingEnabledBinding) {
                     SettingsRowLabel(
                         title: "Enable Performance Tracking",
-                        description: "Record the timestamp, model, and elapsed time of every LLM " +
-                            "request. Only the most recent " +
+                        description: "Record the timestamp, model, total latency, and — for Open Source — " +
+                            "prefill/decode/TTFT plus KV reuse mode. Only the most recent " +
                             "\(PerformanceMetricsStore.maximumEntries) requests are retained.",
                         systemImage: "stopwatch"
                     )
@@ -253,13 +253,21 @@ struct PerformancePaneView: View {
     }
 
     private var tableHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Text("Time")
-                .frame(width: 130, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
             Text("Model")
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Duration")
-                .frame(width: 90, alignment: .trailing)
+            Text("Total")
+                .frame(width: 52, alignment: .trailing)
+            Text("Prefill")
+                .frame(width: 52, alignment: .trailing)
+            Text("Decode")
+                .frame(width: 52, alignment: .trailing)
+            Text("TTFT")
+                .frame(width: 52, alignment: .trailing)
+            Text("Reuse")
+                .frame(width: 52, alignment: .trailing)
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
@@ -267,17 +275,33 @@ struct PerformancePaneView: View {
     }
 
     private func metricRow(for entry: PerformanceMetricEntry) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             Text(Self.timestampFormatter.string(from: entry.timestamp))
-                .frame(width: 130, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
                 .monospacedDigit()
             Text(entry.modelName)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Text("\(entry.latencyMs) ms")
-                .frame(width: 90, alignment: .trailing)
+            Text("\(entry.latencyMs)")
+                .frame(width: 52, alignment: .trailing)
                 .monospacedDigit()
+            Text(entry.prefillMs.map(String.init) ?? "—")
+                .frame(width: 52, alignment: .trailing)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Text(entry.decodeMs.map(String.init) ?? "—")
+                .frame(width: 52, alignment: .trailing)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Text(entry.timeToFirstPartialMs.map(String.init) ?? "—")
+                .frame(width: 52, alignment: .trailing)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Text(entry.reuseMode ?? "—")
+                .frame(width: 52, alignment: .trailing)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .font(.callout)
         .padding(.vertical, 4)

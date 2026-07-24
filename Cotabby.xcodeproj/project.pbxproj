@@ -298,6 +298,7 @@
 		5CBE09685D85DFED89B79437 /* FocusPollBackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1337F5C94FA9A6388841805 /* FocusPollBackoffTests.swift */; };
 		5CF34E01F13FB242817057E2 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 6F134BAB5BC7015B9B2354AF /* Sparkle */; };
 		5D26377BB1EADFC3742D6800 /* OpenAICompatibleAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EE99DFA6D7D4B925AFAD1B4 /* OpenAICompatibleAPIClient.swift */; };
+		5D3AF8515FF082C34E288435 /* LlamaKVReusePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B2B1A1B86C2F981EF5CA70 /* LlamaKVReusePolicy.swift */; };
 		5D6BF62973E33472E20E82B5 /* SuggestionCoordinator+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7814C85DA992C8124474FD81 /* SuggestionCoordinator+Lifecycle.swift */; };
 		5E1CE9C9062D2DEB4B96FD5C /* PerDomainDisableSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F49C55FFF4352A6763BAE1A /* PerDomainDisableSettings.swift */; };
 		5E307FD6E4846B8A0B03BF59 /* SuggestionCaretLayoutRepairTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B228E9A83E5F6D879C384DA9 /* SuggestionCaretLayoutRepairTests.swift */; };
@@ -393,6 +394,7 @@
 		78ADD24191489318BCC99372 /* SettingsRowLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44768629365FAD1A66DA3A51 /* SettingsRowLabel.swift */; };
 		7955ED6ECA506D4EDA204BB1 /* AppUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7A9C39A0713BD3B442C9AC /* AppUpdateManager.swift */; };
 		7A31E6395C535FF017A1EFE1 /* CotabbyDebugOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47CD9DF50E7192A70D1870E /* CotabbyDebugOptions.swift */; };
+		7AC285CEA94058737D0B6A13 /* LlamaKVReusePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E73208DFD783FA2353301A /* LlamaKVReusePolicyTests.swift */; };
 		7B6A63F5DCC2C163CDFD2A5C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC4F887528AE74AC0DD30314 /* Assets.xcassets */; };
 		7B9AF1940729B246890C555C /* CompletionWordCounterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AC64E751D060B1D16C6241C /* CompletionWordCounterTests.swift */; };
 		7BE110312F7E8E845763D6A5 /* InsertionSafetyGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67EA130AF8073D90CA89AAC6 /* InsertionSafetyGateTests.swift */; };
@@ -530,6 +532,7 @@
 		AB5D37BA744546F14C5566E8 /* AppearancePaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFBE491B3CA04FE9069B7B0F /* AppearancePaneView.swift */; };
 		AB8F186A7CB13779DAF729A0 /* MacroEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66D6D153C80A5BDE4905B81E /* MacroEngineTests.swift */; };
 		AC3A30CDDFE6ED0A0D87005F /* FoundationModelDriftEvalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2228A6C24CDE5F9D8DE33BF3 /* FoundationModelDriftEvalTests.swift */; };
+		AC410729AB3B8F12CB8B3FAC /* LlamaKVReusePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B2B1A1B86C2F981EF5CA70 /* LlamaKVReusePolicy.swift */; };
 		AC716016F8E26C1711C39F6D /* FileLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C90C9EBCB70327D215EAE07 /* FileLogHandler.swift */; };
 		ACC1D8C50007AA193271F977 /* PerformancePaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBD6113A3C1038BECC99245 /* PerformancePaneView.swift */; };
 		AD0FE3F0F75A40B827109589 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3350EDE01ED5125520C79D53 /* SettingsCoordinator.swift */; };
@@ -1035,6 +1038,7 @@
 		7ED49536B3F38DFF35A0C63F /* WritingMemoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingMemoryStore.swift; sourceTree = "<group>"; };
 		7EFC3DDE7528C434BB3446C4 /* SurfaceContextCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceContextCache.swift; sourceTree = "<group>"; };
 		7F7E66CFA5AB733CE1F793A8 /* MarkerSelectionSynthesizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkerSelectionSynthesizerTests.swift; sourceTree = "<group>"; };
+		80B2B1A1B86C2F981EF5CA70 /* LlamaKVReusePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaKVReusePolicy.swift; sourceTree = "<group>"; };
 		8159F4DD2F03935DD17BD907 /* EmojiTriggerStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiTriggerStateMachine.swift; sourceTree = "<group>"; };
 		81B57905DE20AD5E88BAE0B0 /* BrowserDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserDomain.swift; sourceTree = "<group>"; };
 		81D7F428477976398CFC5CCF /* DecodeStopPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecodeStopPolicyTests.swift; sourceTree = "<group>"; };
@@ -1059,6 +1063,7 @@
 		8C151BF4D39485E5CFACFECB /* ApplicationBundleMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationBundleMetadataTests.swift; sourceTree = "<group>"; };
 		8D881FED12A85FFC20F2C9D7 /* DisplayCoordinateConverterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayCoordinateConverterTests.swift; sourceTree = "<group>"; };
 		8E89746E8CE7E9487337EE6F /* InsertionSafetyGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsertionSafetyGate.swift; sourceTree = "<group>"; };
+		90E73208DFD783FA2353301A /* LlamaKVReusePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaKVReusePolicyTests.swift; sourceTree = "<group>"; };
 		924CAA5E25C596A9FAB7602B /* InlinePreviewPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlinePreviewPanelController.swift; sourceTree = "<group>"; };
 		926B332E7B4CFEE42C4CAA75 /* OnboardingFeatureShowcase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFeatureShowcase.swift; sourceTree = "<group>"; };
 		928A884292355FEF8B605B64 /* SuggestionFadeInPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionFadeInPolicyTests.swift; sourceTree = "<group>"; };
@@ -2378,6 +2383,7 @@
 				C319B4FF652512A69377DD5C /* DecodeStopPolicy.swift */,
 				6F324C645A4E53FB6E90061A /* DownloadOutcomeClassifier.swift */,
 				EFDAFEE2E5361F3C8C0574E1 /* EngineStreamingPartialCoalescer.swift */,
+				80B2B1A1B86C2F981EF5CA70 /* LlamaKVReusePolicy.swift */,
 			);
 			path = Runtime;
 			sourceTree = "<group>";
@@ -3026,6 +3032,7 @@
 				81D7F428477976398CFC5CCF /* DecodeStopPolicyTests.swift */,
 				7B3AD6D4125ED99669F4EC32 /* DownloadOutcomeClassifierTests.swift */,
 				3D5C8E4CF4060700FE8230DF /* EngineStreamingPartialCoalescerTests.swift */,
+				90E73208DFD783FA2353301A /* LlamaKVReusePolicyTests.swift */,
 			);
 			path = Runtime;
 			sourceTree = "<group>";
@@ -3390,6 +3397,7 @@
 				4D32F003F78EAAA984E77D83 /* LLMIOFileHandler.swift in Sources */,
 				BD4D2296BC699984D1916450 /* LanguageCatalog.swift in Sources */,
 				DC9EBC526DBF265C00853AE4 /* LanguageTagsEditor.swift in Sources */,
+				5D3AF8515FF082C34E288435 /* LlamaKVReusePolicy.swift in Sources */,
 				F02C29667DEA43507521C87B /* LlamaRuntimeCore.swift in Sources */,
 				163735A1B906AE8B009CC547 /* LlamaRuntimeManager.swift in Sources */,
 				F50F54FB1B3B2B2E464B8683 /* LlamaRuntimeModels.swift in Sources */,
@@ -3672,6 +3680,7 @@
 				1104ABD01283774EDF249EF0 /* LLMIOFileHandler.swift in Sources */,
 				54091F97C3F64ABB737DC76B /* LanguageCatalog.swift in Sources */,
 				9C31C64224E710040F23CEB2 /* LanguageTagsEditor.swift in Sources */,
+				AC410729AB3B8F12CB8B3FAC /* LlamaKVReusePolicy.swift in Sources */,
 				45E72FDF94C0510AFCAA6C3E /* LlamaRuntimeCore.swift in Sources */,
 				7BEA76E69707BC760B0D2394 /* LlamaRuntimeManager.swift in Sources */,
 				D42BBBD704B21898047615E0 /* LlamaRuntimeModels.swift in Sources */,
@@ -3903,6 +3912,7 @@
 				945552C364C43F920138E58B /* LlamaDecodeGateDefaultsTests.swift in Sources */,
 				C1ADF50B2D3A3A05CD0FFA68 /* LlamaEvalScoring.swift in Sources */,
 				3C1D10594D37E35313B86BDD /* LlamaEvalScoringTests.swift in Sources */,
+				7AC285CEA94058737D0B6A13 /* LlamaKVReusePolicyTests.swift in Sources */,
 				C4D2228E292AB40109C93C63 /* LlamaPromptCacheHintTrackerTests.swift in Sources */,
 				1B1DDCEEA435F7DAB6C68B92 /* LlamaSuggestionEngineCancellationTests.swift in Sources */,
 				635026FA5A2CDD7CB29AC20F /* LlamaSuggestionEnginePrewarmTests.swift in Sources */,
