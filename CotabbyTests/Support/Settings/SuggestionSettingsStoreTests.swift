@@ -245,6 +245,38 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(data.fadeInSuggestions)
     }
 
+    func test_load_streamSuggestionsDefaultsOn() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(SuggestionSettingsStore.defaultStreamSuggestionsWhileGenerating)
+        XCTAssertTrue(data.streamSuggestionsWhileGenerating)
+        XCTAssertEqual(defaults.integer(forKey: "cotabbyStreamWhileGeneratingDefaultRevision"), 1)
+    }
+
+    func test_load_migratesShippedStreamOffDefaultToOn() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set(false, forKey: "cotabbyStreamSuggestionsWhileGenerating")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(data.streamSuggestionsWhileGenerating)
+        XCTAssertEqual(defaults.integer(forKey: "cotabbyStreamWhileGeneratingDefaultRevision"), 1)
+    }
+
+    func test_load_preservesStreamOffChosenAfterDefaultMigration() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        defaults.set(false, forKey: "cotabbyStreamSuggestionsWhileGenerating")
+        XCTAssertTrue(store.load(configuration: .standard).streamSuggestionsWhileGenerating)
+
+        store.saveStreamSuggestionsWhileGenerating(false)
+
+        let data = store.load(configuration: .standard)
+        XCTAssertFalse(data.streamSuggestionsWhileGenerating)
+    }
+
     func test_load_fadeInDurationDefaultsToSecondFastestTick() async {
         let defaults = makeIsolatedDefaults()
 

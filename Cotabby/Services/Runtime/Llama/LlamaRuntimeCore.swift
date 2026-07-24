@@ -51,6 +51,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// decode of the same prompt. Guarded by `autocompleteLock`; reset on model load.
     private var modelRejectsPartialTrims = false
 
+    /// Read-only view of `modelRejectsPartialTrims` for prompt-budget selection. Callers on other
+    /// threads may briefly wait on `autocompleteLock` if a decode is mid-trim-learn.
+    var rejectsPartialKVTrims: Bool {
+        autocompleteLock.lock()
+        defer { autocompleteLock.unlock() }
+        return modelRejectsPartialTrims
+    }
+
     /// Coordinates model lifecycle with in-flight generation. `generate()` increments the active
     /// count on entry and decrements on exit. `shutdown()` sets the
     /// shutting-down flag and blocks until all active operations finish before unloading.
@@ -368,12 +376,18 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// `engineCancelled` reports that the native abort flag fired; the sequence must then be
     /// discarded because the flag is set-once for a sequence's lifetime. `onPartialRawText`
     /// receives the cumulative raw completion after each sampled token, on the calling thread.
+    ///
+    /// Completion text accumulates as UTF-8 bytes rather than a growing Swift `String`: `+=` on
+    /// String copies the whole buffer per token (O(n²) under a long decode). Materializing a
+    /// String once per token for stop policy / streaming is still O(n) but avoids the copy tax.
     private func runEngineSampledDecode(
         sequenceID: Int32,
         options: LlamaGenerationOptions,
         onPartialRawText: ((String) -> Void)? = nil
     ) -> (output: LlamaGenerationOutput, engineCancelled: Bool) {
-        var generatedText = ""
+        var generatedBytes: [UInt8] = []
+        generatedBytes.reserveCapacity(64)
+        var wordCounter = CompletionWordCounter()
         var tokensGenerated = 0
         var sumLogprob = 0.0
         var stopReason = "budget_exhausted"
@@ -410,9 +424,20 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             }
 
             let piece = Self.extractPiece(result)
-            generatedText += piece
+            // Word-limit stop fires *before* appending, so a piece that would start word N+1 is
+            // discarded and the high end of the user's preset is the visible completion.
+            if let maximumWords = options.maximumCompletionWords,
+               wordCounter.wouldExceedLimit(applying: piece, maximumWords: maximumWords) {
+                stopReason = DecodeStopPolicy.StopReason.wordLimit.rawValue
+                break
+            }
+
+            generatedBytes.append(contentsOf: piece.utf8)
+            wordCounter.apply(piece)
             tokensGenerated += 1
             sumLogprob += Double(result.logprob)
+
+            let generatedText = String(bytes: generatedBytes, encoding: .utf8) ?? ""
             // Cumulative text, not the delta: consumers render whole partials, and cumulative
             // semantics make late or reordered deliveries harmless downstream.
             onPartialRawText?(generatedText)
@@ -434,6 +459,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             }
         }
 
+        let generatedText = String(bytes: generatedBytes, encoding: .utf8) ?? ""
         CotabbyLogger.runtime.debug(
             "Decode end",
             metadata: [

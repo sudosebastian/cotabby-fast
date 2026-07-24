@@ -61,10 +61,14 @@ final class LlamaSuggestionEngine {
         inflightPrewarmTask?.cancel()
         let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
         let options = Self.makeGenerationOptions(for: request)
+        let prompt = Self.effectivePrompt(
+            for: request,
+            rejectsPartialKVTrims: runtimeManager.rejectsPartialKVTrims
+        )
         let task = Task { [weak self, runtimeManager] in
             do {
                 try await runtimeManager.prefill(
-                    prompt: request.prompt,
+                    prompt: prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options
                 )
@@ -88,10 +92,11 @@ final class LlamaSuggestionEngine {
         try await generateSuggestion(for: request, onPartial: nil)
     }
 
-    /// Streaming variant: cumulative raw partials from the decode thread are normalized and
-    /// forwarded to `onPartial` on the main actor, so the coordinator can paint ghost text while
-    /// the decode is still running. Empty normalizations are withheld (there is nothing useful to
-    /// paint), and the returned result remains the authoritative final completion.
+    /// Streaming variant: cumulative raw partials from the decode thread are coalesced (~16ms
+    /// latest-wins), then normalized and forwarded to `onPartial` on the main actor, so the
+    /// coordinator can paint ghost text while the decode is still running. Empty normalizations
+    /// are withheld (there is nothing useful to paint), and the returned result remains the
+    /// authoritative final completion.
     func generateSuggestion(
         for request: SuggestionRequest,
         onPartial: (@MainActor (SuggestionResult) -> Void)?
@@ -118,34 +123,42 @@ final class LlamaSuggestionEngine {
                 ]) { _, new in new }
             )
             let options = Self.makeGenerationOptions(for: request)
+            let prompt = Self.effectivePrompt(
+                for: request,
+                rejectsPartialKVTrims: runtimeManager.rejectsPartialKVTrims
+            )
             let output: LlamaGenerationOutput
             if let onPartial {
+                // Coalesce decode-thread partials before MainActor normalize. Without this,
+                // default-on streaming spends more time hopping actors than decoding.
+                let coalescer = EngineStreamingPartialCoalescer()
                 output = try await runtimeManager.generate(
-                    prompt: request.prompt,
+                    prompt: prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options,
                     onPartialRawText: { raw in
-                        // Decode-thread callback; normalization and delivery hop to the main
-                        // actor. Hops are independent tasks, so a shorter cumulative can land
-                        // after a longer one — the coordinator's monotonic render policy makes
-                        // that harmless.
-                        Task { @MainActor in
-                            let normalized = SuggestionTextNormalizer.normalizeDetailed(raw, for: request).text
-                            guard !normalized.isEmpty else {
-                                return
+                        coalescer.offer(raw) { snapshot in
+                            Task { @MainActor in
+                                let normalized = SuggestionTextNormalizer.normalizeDetailed(
+                                    snapshot,
+                                    for: request
+                                ).text
+                                guard !normalized.isEmpty else {
+                                    return
+                                }
+                                onPartial(SuggestionResult(
+                                    generation: request.generation,
+                                    rawText: snapshot,
+                                    text: normalized,
+                                    latency: Date().timeIntervalSince(startTime)
+                                ))
                             }
-                            onPartial(SuggestionResult(
-                                generation: request.generation,
-                                rawText: raw,
-                                text: normalized,
-                                latency: Date().timeIntervalSince(startTime)
-                            ))
                         }
                     }
                 )
             } else {
                 output = try await runtimeManager.generate(
-                    prompt: request.prompt,
+                    prompt: prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options
                 )
@@ -276,7 +289,32 @@ final class LlamaSuggestionEngine {
                 trailingText: request.context.trailingText
             ),
             confidenceFloor: resolvedConfidenceFloor(),
-            stopAtArgmaxEOG: resolvedStopAtArgmaxEOG()
+            stopAtArgmaxEOG: resolvedStopAtArgmaxEOG(),
+            maximumCompletionWords: request.completionWordRange.highWords
+        )
+    }
+
+    /// Re-renders against the compact budget once the loaded model has proven it cannot reuse a
+    /// trimmed KV prefix. The factory may already have applied the override; this is the
+    /// belt-and-suspenders path for the first request after the flag flips mid-session.
+    private static func effectivePrompt(
+        for request: SuggestionRequest,
+        rejectsPartialKVTrims: Bool
+    ) -> String {
+        guard rejectsPartialKVTrims else {
+            return request.prompt
+        }
+        return BaseCompletionPromptRenderer.prompt(
+            prefixText: request.prefixText,
+            applicationName: request.context.applicationName,
+            userName: request.userName,
+            customRules: request.customRules,
+            extendedContext: request.extendedContext,
+            languageInstruction: request.languageInstruction,
+            clipboardContext: request.clipboardContext,
+            visualContextSummary: request.visualContextSummary,
+            surfaceContext: request.surfaceContext,
+            tokenBudget: SuggestionConfiguration.llamaPromptTokenBudgetWhenKVReuseUnavailable
         )
     }
 }

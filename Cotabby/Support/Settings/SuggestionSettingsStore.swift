@@ -83,6 +83,14 @@ struct SuggestionSettingsStore {
     private static let previousDefaultWordCountPresetRawValue = "12-20"
     private static let currentWordCountPresetDefaultRevision = 1
 
+    /// Streaming used to ship off so ghost text appeared once, fully formed. With engine-side
+    /// partial coalescing the per-token MainActor/normalize cost is gone, so the product default
+    /// is on. The one-shot revision migrates installs still on the old `false` default without
+    /// clobbering an intentional off choice after the revision is recorded.
+    static let defaultStreamSuggestionsWhileGenerating = true
+    private static let previousDefaultStreamSuggestionsWhileGenerating = false
+    private static let currentStreamWhileGeneratingDefaultRevision = 1
+
     // MARK: - UserDefaults keys
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
@@ -141,6 +149,8 @@ struct SuggestionSettingsStore {
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
+    private static let streamWhileGeneratingDefaultRevisionDefaultsKey =
+        "cotabbyStreamWhileGeneratingDefaultRevision"
     private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
     private static let fadeInDurationSecondsDefaultsKey = "cotabbyFadeInDurationSeconds"
     private static let fadeInDurationDefaultRevisionDefaultsKey = "cotabbyFadeInDurationDefaultRevision"
@@ -215,6 +225,7 @@ struct SuggestionSettingsStore {
         autoAcceptTrailingPunctuationDefaultsKey,
         addSpaceAfterAcceptDefaultsKey,
         streamWhileGeneratingDefaultsKey,
+        streamWhileGeneratingDefaultRevisionDefaultsKey,
         fadeInSuggestionsDefaultsKey,
         fadeInDurationSecondsDefaultsKey,
         fadeInDurationDefaultRevisionDefaultsKey,
@@ -432,10 +443,17 @@ struct SuggestionSettingsStore {
         // trailing space is opt-in from Settings.
         let resolvedAddSpaceAfterAccept =
             userDefaults.object(forKey: Self.addSpaceAfterAcceptDefaultsKey) as? Bool ?? false
-        // Defaults to false so the suggestion appears once, fully formed; token-by-token streaming
-        // is opt-in from Settings.
-        let resolvedStreamSuggestionsWhileGenerating =
-            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
+        // Streaming defaulted off historically; with coalesced partial delivery it is now on.
+        // Migrate installs still on the old `false` default once; intentional off after the
+        // revision sticks.
+        let streamWhileGeneratingDefaultRevision =
+            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultRevisionDefaultsKey) as? Int ?? 0
+        let persistedStreamSuggestionsWhileGenerating: Bool? =
+            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool
+        let resolvedStreamSuggestionsWhileGenerating = Self.resolvedStreamSuggestionsWhileGenerating(
+            persisted: persistedStreamSuggestionsWhileGenerating,
+            appliedDefaultRevision: streamWhileGeneratingDefaultRevision
+        )
         // Defaults to true: the gentle fade-in is the intended out-of-box feel. Users who prefer
         // ghost text to snap in instantly can turn it off, and the overlay suppresses it under
         // Reduce Motion regardless. Existing installs (no key) get the fade on the next launch.
@@ -920,6 +938,14 @@ struct SuggestionSettingsStore {
 
     func saveStreamSuggestionsWhileGenerating(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.streamWhileGeneratingDefaultsKey)
+        let persistedRevision =
+            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultRevisionDefaultsKey) as? Int ?? 0
+        if persistedRevision < Self.currentStreamWhileGeneratingDefaultRevision {
+            userDefaults.set(
+                Self.currentStreamWhileGeneratingDefaultRevision,
+                forKey: Self.streamWhileGeneratingDefaultRevisionDefaultsKey
+            )
+        }
     }
 
     func saveFadeInSuggestions(_ enabled: Bool) {
@@ -1067,6 +1093,23 @@ struct SuggestionSettingsStore {
             return configurationDefault
         }
         return SuggestionWordCountPreset(rawValue: storedRaw) ?? configurationDefault
+    }
+
+    /// Applies a product-default change once while keeping a person's non-default selection stable.
+    /// After the revision is recorded, even the old `false` value is treated as an intentional choice.
+    private static func resolvedStreamSuggestionsWhileGenerating(
+        persisted: Bool?,
+        appliedDefaultRevision: Int
+    ) -> Bool {
+        guard appliedDefaultRevision < currentStreamWhileGeneratingDefaultRevision else {
+            return persisted ?? defaultStreamSuggestionsWhileGenerating
+        }
+        guard let persisted else {
+            return defaultStreamSuggestionsWhileGenerating
+        }
+        return persisted == previousDefaultStreamSuggestionsWhileGenerating
+            ? defaultStreamSuggestionsWhileGenerating
+            : persisted
     }
 
     /// Applies a product-default change once while keeping a person's non-default selection stable.

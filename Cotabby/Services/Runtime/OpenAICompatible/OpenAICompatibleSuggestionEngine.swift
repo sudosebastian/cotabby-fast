@@ -40,15 +40,25 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
             let apiKey = try apiKeyProvider()
             let partialHandler: (@MainActor (String) -> Void)?
             if let onPartial {
+                // Same coalesce window as the llama engine: SSE can emit one event per token, and
+                // normalizing each on MainActor is more expensive than the decode itself.
+                let coalescer = EngineStreamingPartialCoalescer()
                 partialHandler = { @MainActor cumulativeRaw in
-                    let normalized = SuggestionTextNormalizer.normalizeDetailed(cumulativeRaw, for: request).text
-                    guard !normalized.isEmpty else { return }
-                    onPartial(SuggestionResult(
-                        generation: request.generation,
-                        rawText: cumulativeRaw,
-                        text: normalized,
-                        latency: Date().timeIntervalSince(startTime)
-                    ))
+                    coalescer.offer(cumulativeRaw) { snapshot in
+                        Task { @MainActor in
+                            let normalized = SuggestionTextNormalizer.normalizeDetailed(
+                                snapshot,
+                                for: request
+                            ).text
+                            guard !normalized.isEmpty else { return }
+                            onPartial(SuggestionResult(
+                                generation: request.generation,
+                                rawText: snapshot,
+                                text: normalized,
+                                latency: Date().timeIntervalSince(startTime)
+                            ))
+                        }
+                    }
                 }
             } else {
                 partialHandler = nil

@@ -4,7 +4,7 @@ import Foundation
 /// early, and why.
 ///
 /// The shipping decoder otherwise samples up to a fixed token budget and trims afterward, which lets
-/// the model ramble past the point a suggestion is useful. Two early stops apply:
+/// the model ramble past the point a suggestion is useful. Early stops apply:
 ///
 /// - **Sentence boundary**: the accumulated text ends at a natural sentence end. A short
 ///   minimum-token guard avoids degenerate instant stops (for example, the model's first token being
@@ -16,14 +16,17 @@ import Foundation
 ///   produces the identical suggestion while skipping the rest of the token budget, exactly in the
 ///   worst case where the model has drifted into template scaffolding. No minimum-token guard: a
 ///   marker means the model believes the turn is over, no matter how early it appears.
+/// - **Word limit**: handled incrementally in the decode loop via `CompletionWordCounter` before a
+///   piece is appended, so this policy stays focused on text-shape stops.
 ///
-/// Both checks inspect only the already-accumulated string (at most a few hundred characters), so
-/// they add no per-token vocabulary work in the decode loop.
+/// Both text checks inspect only the already-accumulated string (at most a few hundred characters),
+/// so they add no per-token vocabulary work in the decode loop.
 nonisolated enum DecodeStopPolicy {
     /// Why decoding stopped early. Raw values feed the decode log's `stop_reason` field.
     enum StopReason: String {
         case sentenceBoundary = "sentence_boundary"
         case scaffoldingMarker = "scaffolding_marker"
+        case wordLimit = "word_limit"
     }
 
     static func verdict(

@@ -53,6 +53,11 @@ final class SuggestionCoordinator: ObservableObject {
     /// contexts return nil so correction ranking falls back to the system spell checker.
     let spellingLanguageResolver: SpellingLanguageResolver
 
+    /// Returns true when the loaded llama model has rejected partial KV trims. Used to shrink the
+    /// Open Source prompt budget on the full-reprefill path. Defaults to false so tests that do
+    /// not wire a runtime still build the standard prompt.
+    let llamaRejectsPartialKVTrimsProvider: () -> Bool
+
     /// Optional first-look hook the emoji picker installs to observe the keystroke stream. Called at
     /// the very top of `handleInputEvent`, before any suggestion logic. Returns `true` when an emoji
     /// capture is involved with this key, in which case the coordinator stands down so ghost text does
@@ -161,7 +166,8 @@ final class SuggestionCoordinator: ObservableObject {
         symSpellCorrector: SymSpellCorrector,
         spellingLanguageResolver: SpellingLanguageResolver = SpellingLanguageResolver(),
         qualityMetricsStore: SuggestionQualityMetricsStore,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        llamaRejectsPartialKVTrimsProvider: @escaping () -> Bool = { false }
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
             forKey: Self.totalTabAcceptedWordCountDefaultsKey)
@@ -184,6 +190,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.spellingLanguageResolver = spellingLanguageResolver
         self.qualityMetricsStore = qualityMetricsStore
         self.userDefaults = userDefaults
+        self.llamaRejectsPartialKVTrimsProvider = llamaRejectsPartialKVTrimsProvider
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
         // wants to show state," which keeps the coordinator closer to orchestration code.

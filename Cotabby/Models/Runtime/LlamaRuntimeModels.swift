@@ -207,6 +207,12 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// is the strongest anti-rambling signal available per token, and the engine computes it while
     /// the logits row is hot, so honoring it costs nothing here.
     var stopAtArgmaxEOG: Bool = true
+
+    /// Soft upper bound on completed words. The decode loop stops *before* appending a piece that
+    /// would start word `maximumCompletionWords + 1`, so the high end of the user's word-count
+    /// preset is honored without paying for tokens the normalizer would trim anyway. `nil`
+    /// disables the gate (tests that only exercise token-budget / sentence stops).
+    var maximumCompletionWords: Int? = nil
 }
 
 /// One generation's text plus the confidence signals the caller needs for suppression accounting.

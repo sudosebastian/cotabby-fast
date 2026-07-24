@@ -355,4 +355,49 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertNil(result.request.surfaceContext, "app metadata biases base models toward code; editors stay bare")
         XCTAssertFalse(result.request.prompt.contains("Project.swift"))
     }
+
+    func test_buildRequest_copiesEffectiveWordRangeOntoRequest() {
+        let result = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedWordCountPreset: .fourToSeven),
+            configuration: .standard
+        )
+
+        XCTAssertEqual(result.request.completionWordRange, SuggestionWordCountPreset.fourToSeven.range)
+    }
+
+    func test_buildRequest_appliesCompactLlamaBudgetOverrideOnlyForOpenSource() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: String(repeating: "word ", count: 200)
+        )
+        let override = SuggestionConfiguration.llamaPromptTokenBudgetWhenKVReuseUnavailable
+
+        let llama = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
+            configuration: .standard,
+            llamaPromptTokenBudgetOverride: override
+        )
+        let apple = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: .standard,
+            llamaPromptTokenBudgetOverride: override
+        )
+
+        // Compact budget must actually shrink the Open Source prompt versus the standard budget.
+        let fullLlama = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
+            configuration: .standard
+        )
+        XCTAssertLessThan(llama.request.prompt.utf8.count, fullLlama.request.prompt.utf8.count)
+        // Apple path ignores the llama override (same prompt with or without it).
+        let appleWithoutOverride = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: .standard
+        )
+        XCTAssertEqual(apple.request.prompt, appleWithoutOverride.request.prompt)
+    }
 }

@@ -156,7 +156,8 @@ extension SuggestionCoordinator {
             let request = SuggestionRequestFactory.buildRequest(
                 context: prewarmContext,
                 settings: settings,
-                configuration: configuration
+                configuration: configuration,
+                llamaPromptTokenBudgetOverride: self.llamaPromptTokenBudgetOverrideIfNeeded()
             ).request
             await suggestionEngine.prewarm(for: request)
         }

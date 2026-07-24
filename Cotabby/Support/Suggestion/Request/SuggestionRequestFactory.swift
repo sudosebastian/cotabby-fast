@@ -29,12 +29,16 @@ enum SuggestionRequestFactory {
     }
 
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.
+    ///
+    /// `llamaPromptTokenBudgetOverride` lets the Open Source path shrink the prompt once the loaded
+    /// model has rejected partial KV trims (full re-prefill every request). Other engines ignore it.
     static func buildRequest(
         context: FocusedInputContext,
         settings: SuggestionSettingsSnapshot,
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
-        visualContextSummary: String? = nil
+        visualContextSummary: String? = nil,
+        llamaPromptTokenBudgetOverride: Int? = nil
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -86,6 +90,12 @@ enum SuggestionRequestFactory {
         // Custom instructions and persona condition the output rather than being obeyed. The
         // Foundation Models path builds its own messages from these same request fields, so this
         // prompt string is only consumed by the llama engine.
+        let llamaTokenBudget: Int = {
+            guard settings.selectedEngine == .llamaOpenSource else {
+                return configuration.llamaPromptTokenBudget
+            }
+            return llamaPromptTokenBudgetOverride ?? configuration.llamaPromptTokenBudget
+        }()
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: prefixText,
             applicationName: context.applicationName,
@@ -96,9 +106,10 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
-            tokenBudget: configuration.llamaPromptTokenBudget
+            tokenBudget: llamaTokenBudget
         )
 
+        let wordRange = settings.effectiveWordRange
         let request = SuggestionRequest(
             context: context,
             prefixText: prefixText,
@@ -106,7 +117,7 @@ enum SuggestionRequestFactory {
             generation: context.generation,
             maxPredictionTokens: activeMaxPredictionTokens(
                 configuration: configuration,
-                wordRange: settings.effectiveWordRange,
+                wordRange: wordRange,
                 responseLanguages: settings.responseLanguages,
                 isMultiLineEnabled: settings.isMultiLineEnabled
             ),
@@ -126,6 +137,7 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
+            completionWordRange: wordRange,
             requestID: RequestID.generate()
         )
 

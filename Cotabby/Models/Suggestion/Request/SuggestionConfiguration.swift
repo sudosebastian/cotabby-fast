@@ -120,6 +120,10 @@ struct SuggestionConfiguration: Equatable, Sendable {
     /// shows up directly in Performance pane Duration. 1024 keeps enough surrounding prose for
     /// inline autocomplete without paying a multi-hundred-ms prefill on every keystroke.
     static let llamaPromptTokenBudgetCap = 1024
+    /// Tighter prompt budget used once the loaded model has rejected a partial KV trim. Those
+    /// models re-prefill the full prompt every request, so 768 tokens (~640–768 band) cuts
+    /// Duration without starving the caret prefix (still priority 100 in the renderer).
+    static let llamaPromptTokenBudgetWhenKVReuseUnavailable = 768
     /// The per-sequence KV capacity minus the output ceiling and safety margin, then capped for
     /// the re-prefill latency path. Computed from `LlamaRuntimeConfiguration.default` so the
     /// context-window constant cannot drift apart silently.

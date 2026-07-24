@@ -142,6 +142,10 @@ extension SuggestionGenerating {
 /// a fake runtime instead of loading a real model. `LlamaRuntimeManager` is the production conformer.
 @MainActor
 protocol LlamaRuntimeGenerating: AnyObject {
+    /// True when the loaded model cannot reuse a trimmed KV prefix (hybrid/SWA). Defaults to
+    /// `false` on fakes so request-factory tests stay on the full prompt budget.
+    var rejectsPartialKVTrims: Bool { get }
+
     func generate(
         prompt: String,
         cachedPrefixBytes: Int?,
@@ -165,6 +169,8 @@ protocol LlamaRuntimeGenerating: AnyObject {
 }
 
 extension LlamaRuntimeGenerating {
+    var rejectsPartialKVTrims: Bool { false }
+
     /// Default no-op so test fakes that only exercise the generate/cancel contract keep compiling;
     /// the production manager overrides this with a real prompt prefill.
     func prefill(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws {}

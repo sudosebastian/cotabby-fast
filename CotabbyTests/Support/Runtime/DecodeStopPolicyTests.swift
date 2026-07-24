@@ -86,5 +86,9 @@ final class DecodeStopPolicyTests: XCTestCase {
             DecodeStopPolicy.verdict(accumulated: "Hello there.", tokensGenerated: 3),
             .sentenceBoundary
         )
+        XCTAssertEqual(
+            DecodeStopPolicy.StopReason.wordLimit.rawValue,
+            "word_limit"
+        )
     }
 }
