@@ -45,6 +45,15 @@ final class SuggestionLatencyDefaultsTests: XCTestCase {
         )
     }
 
+    func test_catalogPreferredModelsRejectPartialKVTrimsUpFront() {
+        for filename in LlamaRuntimeConfiguration.default.preferredModelNames {
+            XCTAssertTrue(
+                RuntimeModelCatalog.rejectsPartialKVTrims(forFilename: filename),
+                "\(filename) must advertise rejectsPartialKVTrims so request #1 uses the compact budget."
+            )
+        }
+    }
+
     func test_fourToSevenEnglishBudgetStaysNearTenTokens() {
         let tokens = SuggestionWordRange.predictionTokenBudget(
             highWords: SuggestionWordCountPreset.fourToSeven.range.highWords,

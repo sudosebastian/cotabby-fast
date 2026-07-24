@@ -64,6 +64,12 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     /// `x-linked-etag` response header on its CDN URLs.
     let sha256: String?
     let alternateFilenames: [String]
+    /// True when llama.cpp cannot drop mid-sequence KV ranges for this checkpoint
+    /// (hybrid/recurrent or SWA caches). Catalog entries set this so the runtime
+    /// skips doomed trim/prewarm work from the first request instead of learning
+    /// after a rejected `trimKV`. Custom / HuggingFace downloads leave it false
+    /// and keep the learn-by-rejection path.
+    let rejectsPartialKVTrims: Bool
 
     var id: String { filename }
     var actualModelName: String { filename }
@@ -80,7 +86,8 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
         approximateSizeInGigabytes: Double,
         expectedSizeBytes: Int64? = nil,
         sha256: String? = nil,
-        alternateFilenames: [String] = []
+        alternateFilenames: [String] = [],
+        rejectsPartialKVTrims: Bool = false
     ) {
         self.filename = filename
         self.displayName = displayName
@@ -89,6 +96,7 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
         self.expectedSizeBytes = expectedSizeBytes
         self.sha256 = sha256
         self.alternateFilenames = alternateFilenames
+        self.rejectsPartialKVTrims = rejectsPartialKVTrims
     }
 }
 
@@ -108,6 +116,15 @@ enum RuntimeModelCatalog {
         }
     }
 
+    /// Whether a loaded GGUF filename is a catalog checkpoint whose cache rejects partial
+    /// trims. Custom uploads and unlisted HuggingFace files return false so the runtime can
+    /// still discover reuse via a successful `trimKV`.
+    static func rejectsPartialKVTrims(forFilename filename: String) -> Bool {
+        downloadableModels.contains { model in
+            model.rejectsPartialKVTrims && model.allKnownFilenames.contains(filename)
+        }
+    }
+
     /// Builds a HuggingFace direct-download URL from a repo and file path.
     private static func hfURL(_ repo: String, _ file: String) -> URL {
         // Force-unwrap is safe: inputs are compile-time literals forming a valid URL.
@@ -118,30 +135,37 @@ enum RuntimeModelCatalog {
     /// Qwen3.5 / Gemma base checkpoints from mradermacher's i1 GGUF repos. `expectedSizeBytes` and
     /// `sha256` stay nil pending CDN-header capture; the download manager skips size/hash
     /// validation when they are nil. Old instruct GGUFs are intentionally no longer listed.
+    ///
+    /// All four catalog families use hybrid/SWA KV layouts that reject mid-sequence trims in
+    /// llama.cpp, so `rejectsPartialKVTrims` is true up front.
     static let downloadableModels: [DownloadableRuntimeModel] = [
         DownloadableRuntimeModel(
             filename: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
             displayName: displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
             downloadURL: hfURL("mradermacher/Qwen3.5-0.8B-Base-i1-GGUF", "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
-            approximateSizeInGigabytes: 0.8
+            approximateSizeInGigabytes: 0.8,
+            rejectsPartialKVTrims: true
         ),
         DownloadableRuntimeModel(
             filename: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
             displayName: displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
             downloadURL: hfURL("mradermacher/Qwen3.5-2B-Base-i1-GGUF", "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
-            approximateSizeInGigabytes: 1.4
+            approximateSizeInGigabytes: 1.4,
+            rejectsPartialKVTrims: true
         ),
         DownloadableRuntimeModel(
             filename: "gemma-4-E2B.i1-Q6_K.gguf",
             displayName: displayName(for: "gemma-4-E2B.i1-Q6_K.gguf"),
             downloadURL: hfURL("mradermacher/gemma-4-E2B-i1-GGUF", "gemma-4-E2B.i1-Q6_K.gguf"),
-            approximateSizeInGigabytes: 4.5
+            approximateSizeInGigabytes: 4.5,
+            rejectsPartialKVTrims: true
         ),
         DownloadableRuntimeModel(
             filename: "gemma-4-E4B.i1-Q4_K_M.gguf",
             displayName: displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
             downloadURL: hfURL("mradermacher/gemma-4-E4B-i1-GGUF", "gemma-4-E4B.i1-Q4_K_M.gguf"),
-            approximateSizeInGigabytes: 5.0
+            approximateSizeInGigabytes: 5.0,
+            rejectsPartialKVTrims: true
         )
     ]
 }

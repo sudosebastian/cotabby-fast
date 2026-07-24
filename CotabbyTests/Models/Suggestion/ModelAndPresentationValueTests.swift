@@ -346,6 +346,10 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertNil(model.sha256)
         XCTAssertEqual(model.allKnownFilenames, ["custom.gguf"])
         XCTAssertEqual(model.approximateSizeLabel, "~1.4 GB")
+        XCTAssertFalse(
+            model.rejectsPartialKVTrims,
+            "Custom downloads must keep the learn-by-rejection path."
+        )
     }
 
     func test_downloadableModelCatalog_entriesAreUniqueHuggingFaceGGUFDownloads() {
@@ -358,7 +362,13 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
             XCTAssertEqual(model.downloadURL.host, "huggingface.co")
             XCTAssertTrue(model.downloadURL.absoluteString.hasSuffix("?download=true"))
             XCTAssertEqual(model.displayName, RuntimeModelCatalog.displayName(for: model.filename))
+            XCTAssertTrue(
+                model.rejectsPartialKVTrims,
+                "\(model.filename) is a hybrid/SWA catalog family and must skip doomed KV reuse from load."
+            )
+            XCTAssertTrue(RuntimeModelCatalog.rejectsPartialKVTrims(forFilename: model.filename))
         }
+        XCTAssertFalse(RuntimeModelCatalog.rejectsPartialKVTrims(forFilename: "custom-unknown.gguf"))
     }
 
     func test_llamaGenerationOptions_defaultsKeepMaskingAndSuppressionOff() {
