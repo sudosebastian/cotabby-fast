@@ -18,16 +18,16 @@ enum SuggestionAvailabilityEvaluator {
         checkCapability: Bool = true
     ) -> String? {
         guard globallyEnabled else {
-            return "Cotabby is turned off."
+            return "Tabfast is turned off."
         }
 
         guard !temporarilyPaused else {
-            return "Cotabby is temporarily paused."
+            return "Tabfast is temporarily paused."
         }
 
         if let bundleIdentifier = focusSnapshot.bundleIdentifier,
            disabledAppBundleIdentifiers.contains(bundleIdentifier) {
-            return "Cotabby is disabled in \(focusSnapshot.applicationName)."
+            return "Tabfast is disabled in \(focusSnapshot.applicationName)."
         }
 
         // Per-site disable: when focus capture resolved a page URL, a host on the user's disabled list
@@ -37,11 +37,11 @@ enum SuggestionAvailabilityEvaluator {
         if let urlString = focusSnapshot.context?.focusedURLString,
            let host = BrowserDomain.host(fromURLString: urlString),
            BrowserDomain.isHostDisabled(host, disabledDomains: disabledDomains) {
-            return "Cotabby is disabled on \(host)."
+            return "Tabfast is disabled on \(host)."
         }
 
         if TerminalAppDetector.isTerminal(bundleIdentifier: focusSnapshot.bundleIdentifier) {
-            return "Cotabby is not available in terminal apps."
+            return "Tabfast is not available in terminal apps."
         }
 
         // Integrated terminals (VS Code / Cursor xterm.js) share their app's bundle id with the
@@ -49,11 +49,11 @@ enum SuggestionAvailabilityEvaluator {
         // has opted back in, keeping ghost text out of shell prompts and command output while the
         // editor and Copilot chat in the same window keep suggesting.
         if !suggestInIntegratedTerminals, focusSnapshot.context?.isIntegratedTerminal == true {
-            return "Cotabby is not available in the integrated terminal."
+            return "Tabfast is not available in the integrated terminal."
         }
 
         guard inputMonitoringGranted else {
-            return "Input Monitoring permission is required before Cotabby can react to typing."
+            return "Input Monitoring permission is required before Tabfast can react to typing."
         }
 
         guard checkCapability else {

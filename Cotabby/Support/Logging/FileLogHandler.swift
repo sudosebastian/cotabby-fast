@@ -142,7 +142,7 @@ nonisolated final class FileLogWriter: @unchecked Sendable {
         guard let libraryURL = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
             return nil
         }
-        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "Cotabby"
+        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "Tabfast"
         let directory = libraryURL
             .appendingPathComponent("Logs", isDirectory: true)
             .appendingPathComponent(bundleName, isDirectory: true)
@@ -211,7 +211,7 @@ struct FileLogHandler: LogHandler {
         writer.write(json + "\n")
     }
 
-    /// `com.cotabby.runtime` → `runtime`. Matches `OSLogHandler`'s category convention so the
+    /// `com.tabfast.runtime` → `runtime`. Matches `OSLogHandler`'s category convention so the
     /// JSON `category` field lines up with what Console.app shows.
     private static func category(from label: String) -> String {
         let parts = label.split(separator: ".", maxSplits: 2)

@@ -128,8 +128,8 @@ struct ShortcutsPaneView: View {
                     )
                 } label: {
                     SettingsRowLabel(
-                        title: "Toggle Cotabby",
-                        description: "Turn Cotabby on or off globally without opening the menu bar.",
+                        title: "Toggle Tabfast",
+                        description: "Turn Tabfast on or off globally without opening the menu bar.",
                         systemImage: "power.circle"
                     )
                 }

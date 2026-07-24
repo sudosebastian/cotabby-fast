@@ -46,7 +46,7 @@ struct BundledRuntimeLocator {
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
         let appFolderName =
-            (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "Cotabby"
+            (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "Tabfast"
         return
             appSupportRoot
             .appendingPathComponent(appFolderName, isDirectory: true)

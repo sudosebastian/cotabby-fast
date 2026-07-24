@@ -6,11 +6,10 @@ import SwiftUI
 /// `Color.accentColor` so brand moments stay on-brand even when the user picks a different system
 /// accent; ordinary interactive controls should keep following the system accent.
 enum CotabbyBrand {
-    /// The brand blue, sampled from the app icon's background (#007AFF). Identical in both
-    /// appearances.
-    static let accent = Color(red: 0.0, green: 0.478, blue: 1.0)
+    /// Electric cyan sampled from Tabfast's forward mark. Identical in both appearances.
+    static let accent = Color(red: 0.0, green: 0.82, blue: 0.94)
 
     /// Lighter companion to `accent`, used as the top stop of icon-tile and pip gradients so
     /// tinted elements read as lit from above (the System Settings icon treatment).
-    static let accentSoft = Color(red: 0.33, green: 0.63, blue: 1.0)
+    static let accentSoft = Color(red: 0.40, green: 0.30, blue: 0.96)
 }

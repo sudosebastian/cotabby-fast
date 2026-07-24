@@ -105,7 +105,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         let minSize = NSSize(width: 900, height: 560)
         // Bump the autosave name to reset everyone onto the current default instead of restoring
         // any narrower frame saved before the Home redesign.
-        let autosaveName = "CotabbySettingsWindowV7"
+        let autosaveName = "TabfastSettingsWindowV7"
 
         let window = NSWindow(
             contentRect: initialFrame,

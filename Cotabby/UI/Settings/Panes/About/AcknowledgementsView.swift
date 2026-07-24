@@ -55,7 +55,7 @@ struct AcknowledgementsView: View {
         ),
         AcknowledgementEntry(
             name: "swift-log",
-            summary: "Logging façade Cotabby uses across runtime, focus, and suggestion subsystems.",
+            summary: "Logging façade Tabfast uses across runtime, focus, and suggestion subsystems.",
             url: "https://github.com/apple/swift-log"
         ),
         AcknowledgementEntry(
@@ -68,7 +68,7 @@ struct AcknowledgementsView: View {
         ),
         AcknowledgementEntry(
             name: "CotabbyInference",
-            summary: "Swift wrapper around llama.cpp that exposes the inference API Cotabby links against.",
+            summary: "Swift wrapper around llama.cpp that exposes the inference API Tabfast links against.",
             url: "https://github.com/FuJacob/cotabbyinference"
         )
     ]

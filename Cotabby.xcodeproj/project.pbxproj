@@ -3904,8 +3904,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabby.dev)";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabfast.dev)";
+				PRODUCT_MODULE_NAME = Cotabby;
+				PRODUCT_NAME = "Tabfast Dev";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SPARKLE_PUBLIC_ED_KEY = "efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=";
@@ -3943,8 +3944,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabfast;
+				PRODUCT_MODULE_NAME = Cotabby;
+				PRODUCT_NAME = Tabfast;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SPARKLE_PUBLIC_ED_KEY = "efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=";
@@ -3981,8 +3983,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabby.dev)";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabfast.dev)";
+				PRODUCT_MODULE_NAME = Cotabby;
+				PRODUCT_NAME = "Tabfast Dev";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SPARKLE_PUBLIC_ED_KEY = "efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=";
@@ -4137,13 +4140,13 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby.CotabbyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabfast.CotabbyTests;
 				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cotabby.app/Contents/MacOS/Cotabby";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tabfast.app/Contents/MacOS/Tabfast";
 			};
 			name = Debug;
 		};
@@ -4170,8 +4173,9 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabfast;
+				PRODUCT_MODULE_NAME = Cotabby;
+				PRODUCT_NAME = Tabfast;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				SPARKLE_PUBLIC_ED_KEY = "efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=";
@@ -4200,13 +4204,13 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby.CotabbyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabfast.CotabbyTests;
 				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cotabby.app/Contents/MacOS/Cotabby";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tabfast.app/Contents/MacOS/Tabfast";
 			};
 			name = Release;
 		};

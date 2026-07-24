@@ -138,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        CotabbyLogger.app.info("Cotabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        CotabbyLogger.app.info("Tabfast \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         applyLaunchAtLoginDefaultIfNeeded()
         startRuntimeIfPreferredEngineRequiresIt()
         focusModel.start()
@@ -164,7 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if shouldShowSettings {
             if !suggestionSettings.isMenuBarIconVisible && !wasSettingsExplicitlyRequested {
                 CotabbyLogger.app.info(
-                    "Opening Settings because Cotabby launched with its menu bar icon hidden"
+                    "Opening Settings because Tabfast launched with its menu bar icon hidden"
                 )
             }
             settingsCoordinator.showSettings()
@@ -187,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return true
         }
 
-        CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
+        CotabbyLogger.app.info("Opening Settings because Tabfast was reopened with its menu bar icon hidden")
         settingsCoordinator.showSettings()
         return false
     }
@@ -223,8 +223,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        CotabbyLogger.app.info("Cotabby terminating, releasing services")
-        activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
+        CotabbyLogger.app.info("Tabfast terminating, releasing services")
+        activationIndicatorController.hide(reason: "Activation indicator hidden because Tabfast is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inlineCommandCoordinator.stop()

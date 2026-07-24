@@ -22,7 +22,7 @@ enum ContextLivePreview {
     /// AX identifier on the preview field. `FocusTracker` keys on this exact value to allow
     /// self-capture for this element and nothing else in Cotabby's own windows. Wired into the focus
     /// pipeline in `CotabbyAppEnvironment`.
-    static let accessibilityIdentifier = "com.cotabby.settings.context.live-preview"
+    static let accessibilityIdentifier = "com.tabfast.settings.context.live-preview"
 }
 
 /// A plain multi-line `NSTextView` whose only special behavior is carrying the sanctioned AX

@@ -32,7 +32,7 @@ final class LLMIOFileHandlerTests: XCTestCase {
 
     func test_log_emitsLLMIORecordWithPromptAndCompletionMetadata() throws {
         let writer = makeWriter()
-        var handler = LLMIOFileHandler(label: "com.cotabby.llm-io", writer: writer)
+        var handler = LLMIOFileHandler(label: "com.tabfast.llm-io", writer: writer)
         handler[metadataKey: "engine"] = .string("llama")
         XCTAssertEqual(handler[metadataKey: "engine"], .string("llama"))
         handler.log(event: LogEvent(

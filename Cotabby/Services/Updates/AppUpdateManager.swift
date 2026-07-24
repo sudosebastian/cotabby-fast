@@ -22,7 +22,7 @@ final class AppUpdateManager {
     /// a shorter development interval while the plist still gives fresh installs the same default.
     private static let automaticCheckInterval: TimeInterval = 24 * 60 * 60
 
-    private static let debugCheckForUpdatesOnLaunchArgument = "-Cotabby-check-for-updates-on-launch"
+    private static let debugCheckForUpdatesOnLaunchArgument = "-Tabfast-check-for-updates-on-launch"
     private static let publicKeyPlaceholder = "REPLACE_WITH_GENERATED_SPARKLE_PUBLIC_ED_KEY"
 
     init() {
@@ -44,7 +44,7 @@ final class AppUpdateManager {
         }
 
         guard Self.isUpdaterEnabledForThisBuild else {
-            // Dev builds carry a distinct bundle identifier (`com.jacobfu.tabby.dev`) so they hold
+            // Dev builds carry a distinct bundle identifier (`com.jacobfu.tabfast.dev`) so they hold
             // their own Accessibility/TCC grant, independent of the released app. Sparkle must never
             // run here: the prod appcast points at the Developer ID-signed release, and letting it
             // install would swap that bundle in over the dev app, collapsing the separate identity
@@ -91,6 +91,12 @@ final class AppUpdateManager {
         }
 
         updaterController.checkForUpdates(nil)
+    }
+
+    /// Rebranding deliberately removes Cotabby's release feed. Presentation reads this value so
+    /// Tabfast does not offer a button that can only no-op until its own signed feed is configured.
+    var isAvailable: Bool {
+        Self.isUpdaterEnabledForThisBuild && hasUsableConfiguration
     }
 
     /// Whether Sparkle should run for this build. Compiled out to `false` in the dev configuration

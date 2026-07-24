@@ -66,7 +66,7 @@ nonisolated enum CotabbyLogger {
     /// JSONL file. Kept out of OSLog because full prompts/completions can be many KB per request
     /// and would dominate Console.app; kept out of `cotabby.jsonl` because it would drown the
     /// orchestration signal an AI debugger wants to skim.
-    static let llmIOLabel = "com.cotabby.llm-io"
+    static let llmIOLabel = "com.tabfast.llm-io"
 
     private static let bootstrapOnce: Void = {
         // The debug-flag check happens once, at bootstrap time. Toggling it requires a relaunch,
@@ -115,13 +115,13 @@ nonisolated enum CotabbyLogger {
         app.info("Logging initialized", metadata: metadata)
     }
 
-    static let app = Logger(label: "com.cotabby.app")
-    static let debug = Logger(label: "com.cotabby.debug")
-    static let runtime = Logger(label: "com.cotabby.runtime")
-    static let focus = Logger(label: "com.cotabby.focus")
-    static let updates = Logger(label: "com.cotabby.updates")
-    static let models = Logger(label: "com.cotabby.models")
-    static let suggestion = Logger(label: "com.cotabby.suggestion")
+    static let app = Logger(label: "com.tabfast.app")
+    static let debug = Logger(label: "com.tabfast.debug")
+    static let runtime = Logger(label: "com.tabfast.runtime")
+    static let focus = Logger(label: "com.tabfast.focus")
+    static let updates = Logger(label: "com.tabfast.updates")
+    static let models = Logger(label: "com.tabfast.models")
+    static let suggestion = Logger(label: "com.tabfast.suggestion")
     /// Full prompts and completions, one structured JSON record per generation. Writes to
     /// `~/Library/Logs/Cotabby/llm-io.jsonl` only when `-cotabby-debug` is set.
     static let llmIO = Logger(label: llmIOLabel)
@@ -138,7 +138,9 @@ struct OSLogHandler: LogHandler {
     /// Apple's convention: `subsystem` is the app-wide identifier (constant for all loggers),
     /// `category` is the per-component label. This way Console.app can filter all Tabby output
     /// with one subsystem while still distinguishing components by category.
-    private static let subsystem = "com.cotabby.app"
+    /// Use the built product's bundle identifier so production and development builds remain
+    /// independently filterable in Console after the Tabfast identity split.
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.jacobfu.tabfast"
 
     /// `logLevel` defaults to `CotabbyDebugOptions.minimumLogLevel` so the always-on Console sink is
     /// quiet (`.info`) in normal runs and fully verbose (`.trace`) under `-cotabby-debug`. The floor

@@ -257,7 +257,7 @@ enum PromptContextSanitizer {
             return false
         }
 
-        // A single leading capital is normal prose ("Safari", "Cotabby"). Multiple capitals in
+        // A single leading capital is normal prose ("Safari", "Tabfast"). Multiple capitals in
         // a short token without a known technical word is usually OCR garbage ("gLVWrt", "bDokE").
         let firstCharacterIsUppercase = letters.first?.isUppercase == true
         if firstCharacterIsUppercase && uppercaseCount == 1 {

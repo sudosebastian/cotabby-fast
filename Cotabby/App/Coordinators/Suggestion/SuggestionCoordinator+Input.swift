@@ -428,7 +428,7 @@ extension SuggestionCoordinator {
             "suppressed-synthetic-input",
             workID: currentWorkID,
             generation: latestGenerationNumber,
-            message: "Ignored Cotabby's own synthetic key event."
+            message: "Ignored Tabfast's own synthetic key event."
         )
     }
 

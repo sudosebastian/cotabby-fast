@@ -6,8 +6,8 @@ import XCTest
 /// boundary the live-preview feature rests on, so it is pinned directly: other settings fields must
 /// never become completion targets.
 final class SelfCaptureGateTests: XCTestCase {
-    private let selfBundle = "com.cotabby.app"
-    private let previewIdentifier = "com.cotabby.settings.context.live-preview"
+    private let selfBundle = "com.tabfast.app"
+    private let previewIdentifier = "com.tabfast.settings.context.live-preview"
 
     func test_otherApp_isAlwaysAllowed() {
         XCTAssertTrue(SelfCaptureGate.allowsCapture(
@@ -44,7 +44,7 @@ final class SelfCaptureGateTests: XCTestCase {
         XCTAssertFalse(SelfCaptureGate.allowsCapture(
             focusedBundleIdentifier: selfBundle,
             ignoredBundleIdentifier: selfBundle,
-            focusedElementIdentifier: "com.cotabby.settings.search",
+            focusedElementIdentifier: "com.tabfast.settings.search",
             sanctionedElementIdentifier: previewIdentifier
         ))
     }

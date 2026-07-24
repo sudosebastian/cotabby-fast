@@ -23,23 +23,19 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>Cotabby needs Accessibility access to read and insert text in other apps.</string>
+	<string>Tabfast needs Accessibility access to read and insert text in other apps.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Tabfast intentionally has no inherited Cotabby update feed. Add a Tabfast-owned Sparkle
+	     feed and public key together when the new project has a release channel. -->
 	<key>SUAllowsAutomaticUpdates</key>
-	<true/>
+	<false/>
 	<key>SUAutomaticallyUpdate</key>
-	<true/>
+	<false/>
 	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
-	<key>SUFeedURL</key>
-	<string>https://updates.cotabby.app/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=</string>
+	<false/>
 </dict>
 </plist>

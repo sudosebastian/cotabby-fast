@@ -904,7 +904,7 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     /// Clears both disable mechanisms used by the menu-bar recovery action. This makes the single
-    /// "Enable Cotabby" button reliable whether a pause or the older global switch disabled it.
+    /// "Enable Tabfast" button reliable whether a pause or the older global switch disabled it.
     func enableCotabby() {
         clearPause()
         setGloballyEnabled(true)

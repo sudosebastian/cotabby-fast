@@ -16,8 +16,8 @@ struct SpellingDictionaryPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(
-                "Choose which bundled dictionaries Cotabby may use for frequency-ranked corrections. "
-                    + "With several enabled, Cotabby selects one from the surrounding text."
+                "Choose which bundled dictionaries Tabfast may use for frequency-ranked corrections. "
+                    + "With several enabled, Tabfast selects one from the surrounding text."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -44,7 +44,7 @@ struct SpellingDictionaryPicker: View {
             }
 
             Text(
-                "Indexes load on demand and Cotabby keeps at most two in memory. If no bundled "
+                "Indexes load on demand and Tabfast keeps at most two in memory. If no bundled "
                     + "dictionary matches, macOS supplies the correction."
             )
             .font(.caption2)

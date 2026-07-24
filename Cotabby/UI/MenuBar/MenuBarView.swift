@@ -64,7 +64,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack(alignment: .center) {
-            Text("Cotabby")
+            Text("Tabfast")
                 .font(.headline)
 
             if let appShortVersion {
@@ -134,7 +134,7 @@ struct MenuBarView: View {
                     Button {
                         suggestionSettings.enableCotabby()
                     } label: {
-                        Label("Enable Cotabby", systemImage: "play.fill")
+                        Label("Enable Tabfast", systemImage: "play.fill")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.borderless)
@@ -144,7 +144,7 @@ struct MenuBarView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     } else {
-                        Text("Cotabby is turned off")
+                        Text("Tabfast is turned off")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -156,7 +156,7 @@ struct MenuBarView: View {
                             }
                         }
                     } label: {
-                        Label("Pause Cotabby", systemImage: "pause.fill")
+                        Label("Pause Tabfast", systemImage: "pause.fill")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .menuStyle(.borderlessButton)
@@ -325,10 +325,12 @@ struct MenuBarView: View {
             }
             .buttonStyle(.borderless)
 
-            Button("Check for Updates") {
-                appUpdateManager.checkForUpdates()
+            if appUpdateManager.isAvailable {
+                Button("Check for Updates") {
+                    appUpdateManager.checkForUpdates()
+                }
+                .buttonStyle(.borderless)
             }
-            .buttonStyle(.borderless)
 
             Spacer(minLength: 0)
 

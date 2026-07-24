@@ -21,7 +21,7 @@ struct GeneralPaneView: View {
                 Toggle(isOn: globallyEnabledBinding) {
                     SettingsRowLabel(
                         title: "Enable Globally",
-                        description: "Turn Cotabby off everywhere without quitting the app.",
+                        description: "Turn Tabfast off everywhere without quitting the app.",
                         systemImage: "power"
                     )
                 }
@@ -43,7 +43,7 @@ struct GeneralPaneView: View {
                 LaunchAtLogin.Toggle {
                     SettingsRowLabel(
                         title: "Open at Login",
-                        description: "Start Cotabby automatically when you log in to your Mac.",
+                        description: "Start Tabfast automatically when you log in to your Mac.",
                         systemImage: "arrow.right.circle"
                     )
                 }
@@ -119,7 +119,7 @@ struct GeneralPaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Reset All Settings",
-                        description: "Restore every Cotabby setting to its original default. This does not change " +
+                        description: "Restore every Tabfast setting to its original default. This does not change " +
                             "macOS permissions, your Open at Login choice, or your accepted-word count.",
                         systemImage: "arrow.counterclockwise"
                     )
@@ -137,7 +137,7 @@ struct GeneralPaneView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every Cotabby setting returns to its original default. This can't be undone.")
+            Text("Every Tabfast setting returns to its original default. This can't be undone.")
         }
     }
 

@@ -16,7 +16,7 @@ final class FocusSnapshotExternalApplicationIdentityTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            snapshot.externalApplicationIdentity(ignoredBundleIdentifier: "com.jacobfu.tabby"),
+            snapshot.externalApplicationIdentity(ignoredBundleIdentifier: "com.jacobfu.tabfast"),
             FocusedApplicationIdentity(
                 applicationName: "Google Chrome",
                 bundleIdentifier: "com.google.Chrome"
@@ -27,13 +27,13 @@ final class FocusSnapshotExternalApplicationIdentityTests: XCTestCase {
     func test_externalApplicationIdentity_ignoresCotabbyApplication() {
         let snapshot = FocusSnapshot(
             applicationName: "Cotabby",
-            bundleIdentifier: "com.jacobfu.tabby",
+            bundleIdentifier: "com.jacobfu.tabfast",
             capability: .blocked("Cotabby is focused."),
             context: nil
         )
 
         XCTAssertNil(
-            snapshot.externalApplicationIdentity(ignoredBundleIdentifier: "com.jacobfu.tabby")
+            snapshot.externalApplicationIdentity(ignoredBundleIdentifier: "com.jacobfu.tabfast")
         )
     }
 
@@ -46,7 +46,7 @@ final class FocusSnapshotExternalApplicationIdentityTests: XCTestCase {
         )
 
         XCTAssertNil(
-            snapshot.externalApplicationIdentity(ignoredBundleIdentifier: "com.jacobfu.tabby")
+            snapshot.externalApplicationIdentity(ignoredBundleIdentifier: "com.jacobfu.tabfast")
         )
     }
 }

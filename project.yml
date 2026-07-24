@@ -135,10 +135,10 @@ targetTemplates:
           - $(inherited)
           - "@executable_path/../Frameworks"
         MARKETING_VERSION: "1.0"
-        # PRODUCT_NAME follows the target name, so the prod target ships "Cotabby.app" while the dev
-        # target ships "Cotabby Dev.app" — two products that can coexist in /Applications, each with
-        # its own row in System Settings > Privacy. The per-target bundle identifier is set below.
-        PRODUCT_NAME: $(TARGET_NAME)
+        # The source module keeps its established internal name while each target below supplies
+        # the user-facing product name. This lets the rebrand produce Tabfast.app without turning a
+        # product-identity change into a risky rename of every Swift symbol.
+        PRODUCT_MODULE_NAME: Cotabby
         REGISTER_APP_GROUPS: YES
         SPARKLE_PUBLIC_ED_KEY: efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=
         STRING_CATALOG_GENERATE_SYMBOLS: YES
@@ -154,7 +154,8 @@ targets:
       - CotabbyApp
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabby
+        PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabfast
+        PRODUCT_NAME: Tabfast
   # Local development build. Distinct bundle identifier + product name means a separate, stable
   # TCC identity (Accessibility, Input Monitoring, Screen Recording survive rebuilds), the dev app
   # icon makes it visually distinct, and the COTABBY_DEV compilation condition disables Sparkle so
@@ -165,9 +166,10 @@ targets:
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
+        PRODUCT_NAME: Tabfast Dev
         # Overridable so a contributor whose personal team rejects the shared id can set their own
         # COTABBY_DEV_BUNDLE_ID in Signing.local.xcconfig; defaults to the canonical dev identity.
-        PRODUCT_BUNDLE_IDENTIFIER: "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabby.dev)"
+        PRODUCT_BUNDLE_IDENTIFIER: "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabfast.dev)"
         # Keep this under `base:` so COTABBY_DEV is defined in EVERY configuration, Release included.
         # Do not scope it to `configs: Debug:`. A Release-config dev build (the scheme's Profile and
         # Archive actions) must still compile Sparkle out; otherwise it could pull the prod appcast
@@ -194,13 +196,13 @@ targets:
           - "@executable_path/../Frameworks"
           - "@loader_path/../Frameworks"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
-        PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabby.CotabbyTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabfast.CotabbyTests
         PRODUCT_MODULE_NAME: $(TARGET_NAME)
         PRODUCT_NAME: $(TARGET_NAME)
         SDKROOT: macosx
         SWIFT_OBJC_INTEROP_MODE: objcxx
         SWIFT_VERSION: "5.0"
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Cotabby.app/Contents/MacOS/Cotabby
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Tabfast.app/Contents/MacOS/Tabfast
 schemes:
   Cotabby:
     build:

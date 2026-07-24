@@ -25,14 +25,14 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var aboutHeader: some View {
         HStack(spacing: 12) {
-            Image("CotabbyLogo")
+            Image("TabfastLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 40, height: 40)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Cotabby")
+                Text("Tabfast")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
 
                 Text("Local macOS AI Autocomplete")
@@ -46,10 +46,16 @@ struct AboutPaneView: View {
 
             Spacer(minLength: 12)
 
-            Button {
-                appUpdateManager.checkForUpdates()
-            } label: {
-                Label("Check for Updates", systemImage: "arrow.triangle.2.circlepath")
+            if appUpdateManager.isAvailable {
+                Button {
+                    appUpdateManager.checkForUpdates()
+                } label: {
+                    Label("Check for Updates", systemImage: "arrow.triangle.2.circlepath")
+                }
+            } else {
+                Text("Local development build")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -64,13 +70,13 @@ struct AboutPaneView: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(
-                    "Cotabby started from a simple belief: AI should run on your device, "
+                    "Tabfast started from a simple belief: AI should run on your device, "
                     + "respect your privacy, and remain open to everyone."
                 )
 
                 Text(
-                    "We're building Cotabby in our spare time, one release at a time. "
-                    + "If Cotabby has helped you, your support helps us keep improving it."
+                    "We're building Tabfast in our spare time, one release at a time. "
+                    + "If Tabfast has helped you, your support helps us keep improving it."
                 )
             }
             .foregroundStyle(.secondary)
@@ -78,7 +84,7 @@ struct AboutPaneView: View {
 
             if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
                 Link(destination: supportURL) {
-                    Label("Support Cotabby", systemImage: "heart.fill")
+                    Label("Support Tabfast", systemImage: "heart.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
@@ -114,8 +120,8 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var uninstallText: some View {
         Text(
-            "Remove Cotabby from Applications. To fully clean up app data, "
-            + "delete ~/Library/Application Support/Cotabby."
+            "Remove Tabfast from Applications. To fully clean up app data, "
+            + "delete ~/Library/Application Support/Tabfast."
         )
         .font(.caption)
         .foregroundStyle(.secondary)

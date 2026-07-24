@@ -95,7 +95,7 @@ final class CotabbyDebugOptionsTests: XCTestCase {
 
     func test_llmIOLabel_isTheReservedRoutingContract() {
         // FileLogHandler routing and the jq-based debugging workflow both key off this label.
-        XCTAssertEqual(CotabbyLogger.llmIOLabel, "com.cotabby.llm-io")
+        XCTAssertEqual(CotabbyLogger.llmIOLabel, "com.tabfast.llm-io")
     }
 
     func test_bootstrap_isIdempotent() {
@@ -108,19 +108,19 @@ final class CotabbyDebugOptionsTests: XCTestCase {
     // MARK: - OSLogHandler
 
     func test_osLogHandler_defaultFloorTracksGlobalConfiguration() {
-        let handler = OSLogHandler(label: "com.cotabby.test-floor")
+        let handler = OSLogHandler(label: "com.tabfast.test-floor")
 
         XCTAssertEqual(handler.logLevel.rawValue, CotabbyDebugOptions.minimumLogLevel.rawValue)
     }
 
     func test_osLogHandler_acceptsExplicitFloor() {
-        let handler = OSLogHandler(label: "com.cotabby.test-floor", logLevel: .critical)
+        let handler = OSLogHandler(label: "com.tabfast.test-floor", logLevel: .critical)
 
         XCTAssertEqual(handler.logLevel.rawValue, "critical")
     }
 
     func test_osLogHandler_metadataSubscriptReadsAndWrites() {
-        var handler = OSLogHandler(label: "com.cotabby.test-metadata")
+        var handler = OSLogHandler(label: "com.tabfast.test-metadata")
 
         XCTAssertNil(handler[metadataKey: "request_id"])
 

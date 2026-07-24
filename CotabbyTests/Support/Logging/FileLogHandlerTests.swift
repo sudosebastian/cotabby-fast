@@ -32,7 +32,7 @@ final class FileLogHandlerTests: XCTestCase {
 
     func test_log_emitsOneValidJSONObjectPerLineWithFlattenedMetadata() throws {
         let writer = makeWriter()
-        var handler = FileLogHandler(label: "com.cotabby.suggestion", writer: writer, logLevel: .trace)
+        var handler = FileLogHandler(label: "com.tabfast.suggestion", writer: writer, logLevel: .trace)
         handler[metadataKey: "handler_key"] = .string("handler_value")
         XCTAssertEqual(handler[metadataKey: "handler_key"], .string("handler_value"))
         handler.log(event: LogEvent(
