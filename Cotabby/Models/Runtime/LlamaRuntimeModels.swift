@@ -164,7 +164,10 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
             "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
             "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
-        contextWindowTokens: 2048,
+        // 1536 is enough for the capped ~1024-token prompt plus short decode, and keeps the KV
+        // arena smaller than 2048 so full prompt re-prefills (hybrid/SWA catalog models) move less
+        // memory per request. Do not raise this for latency; widen only if quality evals demand it.
+        contextWindowTokens: 1536,
         batchSize: 512,
         gpuLayerCount: -1
     )

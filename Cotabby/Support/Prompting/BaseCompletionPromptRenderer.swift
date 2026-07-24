@@ -16,7 +16,9 @@ import Foundation
 enum BaseCompletionPromptRenderer {
     /// Total character budget for the preface plus caret prefix. The prefix arrives already windowed
     /// by `SuggestionRequestFactory`, so this mainly caps how much optional context rides along.
-    static let defaultContextBudget = 2400
+    /// Kept aligned with the llama prompt token cap (~1024 tokens ≈ ~1600 chars of mixed prose) so
+    /// optional sections cannot silently rebuild a long prompt the token budget would then truncate.
+    static let defaultContextBudget = 1600
 
     static func prompt(
         prefixText: String,
@@ -43,32 +45,30 @@ enum BaseCompletionPromptRenderer {
             let lines = SurfaceContextComposer.prefaceLines(for: surface)
             if !lines.isEmpty {
                 sections.append(
-                    Self.contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 240)
+                    Self.contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 200)
                 )
             }
         }
         if let persona = Self.personaLine(userName) {
-            sections.append(Self.contextSection("persona", persona, priority: 60, maxChars: 200))
+            sections.append(Self.contextSection("persona", persona, priority: 60, maxChars: 160))
         }
         if let style = Self.styleLine(customRules) {
-            sections.append(Self.contextSection("style", style, priority: 55, maxChars: 300))
+            sections.append(Self.contextSection("style", style, priority: 55, maxChars: 220))
         }
         if let language = Self.nonEmpty(languageInstruction) {
-            sections.append(Self.contextSection("language", language, priority: 50, maxChars: 300))
+            sections.append(Self.contextSection("language", language, priority: 50, maxChars: 220))
         }
         if let notes = Self.nonEmpty(extendedContext) {
-            // `maxChars` must stay at or above `SuggestionSettingsModel.maximumExtendedContextCharacters`
-            // plus this label (~32 chars) so the full user-entered Extended Context survives here instead
-            // of being silently clipped far under the advertised cap. It still competes for the 2400-char
-            // total budget below (priority 40), so an unusually long prefix can trim it, but in normal use
-            // the whole blob lands.
-            sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 1300))
+            // Notes still compete for the shared character budget (priority 40). Cap is lower than
+            // the Settings extended-context field so a huge glossary cannot dominate every prefill
+            // on the SWA re-prefill path; the prefix keeps top priority below.
+            sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 700))
         }
         if let clip = Self.nonEmpty(clipboardContext) {
-            sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 400))
+            sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 240))
         }
         if let screen = Self.nonEmpty(visualContextSummary) {
-            sections.append(Self.contextSection("screen", "Nearby on screen: \(screen)", priority: 30, maxChars: 500))
+            sections.append(Self.contextSection("screen", "Nearby on screen: \(screen)", priority: 30, maxChars: 280))
         }
         // The caret prefix: top priority so it is never starved, kept by its END (the text nearest
         // the caret), and rendered last with no label so the model continues from where the user
