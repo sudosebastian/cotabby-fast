@@ -138,4 +138,15 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("every word counts here"), "the full prefix survives the token budget")
         XCTAssertTrue(prompt.contains("Written by Jacob"), "context still fits alongside a large prefix")
     }
+
+    func test_memoryGlossaryAppearsInPreface() {
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: "Ship",
+            applicationName: "Slack",
+            userName: nil,
+            memoryGlossary: "CotabbyInference, MatchaRelease"
+        )
+        XCTAssertTrue(prompt.contains("Terms the writer uses often: CotabbyInference, MatchaRelease"))
+        XCTAssertTrue(prompt.hasSuffix("Ship"))
+    }
 }

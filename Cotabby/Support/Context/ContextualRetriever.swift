@@ -32,8 +32,7 @@ enum ContextualRetriever {
             prefixTokens: prefixTokens,
             fieldOCR: fieldOCR,
             ambientLines: ambientLines,
-            recentFocus: recentFocus,
-            currentBundleIdentifier: currentBundleIdentifier
+            recentFocus: recentFocus
         )
 
         let glossary = rankGlossary(
@@ -57,8 +56,7 @@ enum ContextualRetriever {
         prefixTokens: Set<String>,
         fieldOCR: String?,
         ambientLines: [ScreenTextIndexLine],
-        recentFocus: [RecentFocusEntry],
-        currentBundleIdentifier: String?
+        recentFocus: [RecentFocusEntry]
     ) -> String? {
         var scored: [RetrievedContextSnippet] = []
         let recentTitles = recentFocus.compactMap(\.windowTitle)
@@ -116,6 +114,18 @@ enum ContextualRetriever {
         var pieces: [String] = []
         var used = Set<String>()
         var total = 0
+
+        // Field OCR is the precise once-per-focus crop — always keep it when present, then fill
+        // remaining budget with ranked ambient / focus titles. Otherwise prefix-overlapping ambient
+        // lines can crowd out the nearby-field text entirely.
+        for snippet in scored where snippet.source == .fieldOCR {
+            let next = snippet.text
+            used.insert(next.lowercased())
+            pieces.append(next)
+            total += next.count + 2
+            break
+        }
+
         for snippet in scored {
             let key = snippet.text.lowercased()
             guard !used.contains(key) else { continue }
@@ -173,11 +183,19 @@ enum ContextualRetriever {
             if terms.contains(where: { $0.caseInsensitiveCompare(text) == .orderedSame }) {
                 continue
             }
-            // Prefer terms that share a prefix token with what the user is typing, or top frequency.
-            let keyTokens = WritingMemoryLearner.tokenize(text).map { $0.lowercased() }
-            let relevant = prefixTokens.isEmpty
-                || !prefixTokens.isDisjoint(with: Set(keyTokens))
-                || terms.count < 3
+            let keyTokens = Set(WritingMemoryLearner.tokenize(text).map { $0.lowercased() })
+            // With a live prefix, only inject terms that share tokens or a typed stem. Without a
+            // prefix (rare), fall back to the top-scoring rare terms so a cold field still gets a
+            // tiny glossary.
+            let relevant: Bool
+            if prefixTokens.isEmpty {
+                relevant = true
+            } else {
+                relevant = !prefixTokens.isDisjoint(with: keyTokens)
+                    || prefixTokens.contains(where: { token in
+                        keyTokens.contains(where: { $0.hasPrefix(token) && token.count >= 2 })
+                    })
+            }
             guard relevant else { continue }
             terms.append(text)
             total += text.count + 2

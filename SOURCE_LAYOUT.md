@@ -35,6 +35,7 @@ Cotabby/
 │   ├── Context/                      bounded context and visual-context values
 │   ├── Emoji/                        picker and usage values
 │   ├── Focus/                        focus snapshots and tracking state
+│   ├── Memory/                       writing-memory domain values
 │   ├── Input/                        keyboard event values
 │   ├── Onboarding/                   onboarding templates
 │   ├── Permissions/                  TCC permission values
@@ -52,6 +53,7 @@ Cotabby/
 │   │   ├── Caching/                  field-scoped focus and surface caches
 │   │   ├── Chromium/                 Chromium AX enablement and diagnostics
 │   │   └── Resolution/               focus snapshots, geometry, bounded AX walks
+│   ├── Memory/                       writing-memory persistence
 │   ├── Input/                        event taps and input-source monitoring
 │   ├── ModelManagement/              model discovery, download, and validation
 │   ├── Permission/
@@ -66,7 +68,7 @@ Cotabby/
 │   ├── Suggestion/
 │   │   └── State/                    work identity and mutable interaction state
 │   ├── Updates/                      Sparkle update integration
-│   └── Visual/                       capture, OCR, and visual-context sessions
+│   └── Visual/                       capture, OCR, visual-context, ambient display index
 ├── Support/
 │   ├── Accessibility/                pure AX and secure-surface policies
 │   ├── Context/                      sanitization, relevance, and OCR hygiene
@@ -79,6 +81,7 @@ Cotabby/
 │   │   └── Capability/               supported-field capability resolution
 │   ├── Input/                        composition, key-label, and selection helpers
 │   ├── Logging/                      debug options, request IDs, and JSONL handlers
+│   ├── Memory/                       writing-memory learning rules
 │   ├── Macros/
 │   │   └── Evaluators/               deterministic arithmetic/date/unit evaluators
 │   ├── Onboarding/                   pure onboarding recommendation rules
