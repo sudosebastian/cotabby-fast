@@ -66,7 +66,11 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Ephemeral clipboard context captured only when the user has enabled clipboard prompting.
     let clipboardContext: String?
     /// Ephemeral screen context summary injected only when available for the active text field.
+    /// Populated from `ContextualRetriever` (field OCR + ambient screen + focus prior), not raw OCR.
     let visualContextSummary: String?
+    /// Small rare-term glossary retrieved from writing memory. Kept separate from Extended Context
+    /// (user-authored) and from screen text so the renderer can budget and label it independently.
+    let memoryGlossary: String?
     /// The composed writing-surface description (app class, window title, domain, placeholder),
     /// nil when the user disabled surface context or the surface class suppresses it. The llama
     /// prompt has already folded it in; this field exists so the Foundation Models renderer can
@@ -105,6 +109,7 @@ struct SuggestionRequest: Equatable, Sendable {
         languageInstruction: String?,
         clipboardContext: String?,
         visualContextSummary: String?,
+        memoryGlossary: String? = nil,
         surfaceContext: SurfaceContext? = nil,
         isMultiLineEnabled: Bool,
         completionWordRange: SuggestionWordRange = SuggestionWordRange(
@@ -132,6 +137,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.languageInstruction = languageInstruction
         self.clipboardContext = clipboardContext
         self.visualContextSummary = visualContextSummary
+        self.memoryGlossary = memoryGlossary
         self.surfaceContext = surfaceContext
         self.isMultiLineEnabled = isMultiLineEnabled
         self.completionWordRange = completionWordRange

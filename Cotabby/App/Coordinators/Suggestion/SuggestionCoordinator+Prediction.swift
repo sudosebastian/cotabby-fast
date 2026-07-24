@@ -108,18 +108,33 @@ extension SuggestionCoordinator {
         if restoreSuggestionFromAnchorCache(context: context, workID: workID) {
             return
         }
-        // Screen Recording is optional. Re-check it live so a cached excerpt captured before the user
-        // revoked the permission can never be injected during the 2s permission-poll window.
-        let visualContextSummary = permissionManager.screenRecordingGranted
-            ? visualContextCoordinator.excerpt(for: context)
-            : nil
+
+        let prefixText = SuggestionRequestFactory.truncatedPromptPrefix(
+            from: context.precedingText,
+            configuration: configuration,
+            engine: settingsSnapshot.selectedEngine
+        )
+        let retrieved = retrievedPromptContext(for: context, prefixText: prefixText)
+
+        // High-confidence acceptance memory can continue without waiting on the model.
+        if settingsSnapshot.isWritingMemoryEnabled,
+           let instant = retrieved.instantContinuation,
+           restoreSuggestionFromMemory(
+               continuation: instant,
+               context: context,
+               workID: workID
+           ) {
+            return
+        }
+
         let clipboardContext = pinnedClipboardContext(rawContext: rawContext)
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary,
+            visualContextSummary: retrieved.screenSummary,
+            memoryGlossary: retrieved.memoryGlossary,
             llamaPromptTokenBudgetOverride: llamaPromptTokenBudgetOverrideIfNeeded()
         )
         latestGenerationNumber = context.generation
@@ -190,6 +205,42 @@ extension SuggestionCoordinator {
         return true
     }
 
+    /// Shows a high-confidence writing-memory continuation without running the LLM.
+    private func restoreSuggestionFromMemory(
+        continuation: String,
+        context: FocusedInputContext,
+        workID: UInt64
+    ) -> Bool {
+        guard context.selection.length == 0, !context.isSecure else { return false }
+        guard !continuation.isEmpty else { return false }
+        if TrailingDuplicationFilter.duplicatesTrailingText(continuation, trailingText: context.trailingText) {
+            return false
+        }
+
+        lastAcceptedTail = nil
+        latestGenerationNumber = context.generation
+        let session = interactionState.startSession(
+            fullText: continuation,
+            liveContext: context,
+            latency: 0
+        )
+        state = .ready(text: session.remainingText, latency: session.latency)
+        presentOverlay(
+            text: session.remainingText,
+            at: context.caretRect,
+            context: context,
+            isRightToLeft: TextDirectionDetector.isRightToLeft(context.precedingText)
+        )
+        logStage(
+            "memory-restore",
+            workID: workID,
+            generation: context.generation,
+            message: "Showed a writing-memory continuation without regenerating.",
+            normalizedOutput: continuation
+        )
+        return true
+    }
+
     /// Starts the next generation immediately after a final-chunk accept, against the snapshot
     /// the host is expected to publish, instead of idling through the publish poll first. The
     /// poll keeps running as the validator: a matching publish lets this result through
@@ -223,9 +274,12 @@ extension SuggestionCoordinator {
         let context = interactionState.materializeContext(from: optimistic)
         pendingSpeculativeSignature = context.contentSignature
 
-        let visualContextSummary = permissionManager.screenRecordingGranted
-            ? visualContextCoordinator.excerpt(for: context)
-            : nil
+        let prefixText = SuggestionRequestFactory.truncatedPromptPrefix(
+            from: context.precedingText,
+            configuration: configuration,
+            engine: settingsSnapshot.selectedEngine
+        )
+        let retrieved = retrievedPromptContext(for: context, prefixText: prefixText)
         // The pinned clipboard verdict, not a fresh filter pass: a speculative request that
         // re-evaluated relevance against the optimistic prefix could flip the verdict and rewrite
         // the prompt head mid-session, breaking prompt-byte continuity with the ordinary cycle
@@ -236,7 +290,8 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary,
+            visualContextSummary: retrieved.screenSummary,
+            memoryGlossary: retrieved.memoryGlossary,
             llamaPromptTokenBudgetOverride: llamaPromptTokenBudgetOverrideIfNeeded()
         )
         latestGenerationNumber = context.generation

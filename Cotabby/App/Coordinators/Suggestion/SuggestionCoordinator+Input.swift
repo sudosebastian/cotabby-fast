@@ -52,6 +52,7 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.trace(
             "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel) detail=\(changedDetail)"
         )
+        recordFocusForRetrieval(snapshot)
         // Start capturing visual context for a newly focused input even when predictions are
         // temporarily disabled by transient field states (e.g., "text is selected" or "secure
         // field"). Skip capture entirely when the subsystem is hard-disabled (globally off,

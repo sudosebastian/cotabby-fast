@@ -280,6 +280,11 @@ func makeCoordinatorRig(
         clipboardContextProvider: clipboardProvider,
         clipboardRelevanceFilter: clipboardFilter,
         visualContextCoordinator: visualContext,
+        writingMemoryStore: WritingMemoryStore(
+            defaults: UserDefaults(suiteName: "CotabbyTests.rig.memory.\(UUID().uuidString)") ?? .standard
+        ),
+        recentFocusRing: RecentFocusRing(),
+        ambientScreenIndexer: AmbientScreenIndexer(),
         interactionState: interactionState,
         workController: SuggestionWorkController(),
         configuration: .standard,

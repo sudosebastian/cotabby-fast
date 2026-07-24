@@ -70,6 +70,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// typing in. See `SurfaceContextComposer` for what is actually rendered.
     @Published private(set) var isSurfaceContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
+    /// When on (default), Tab accepts update a local rare-term / n-gram memory for glossary retrieval.
+    @Published private(set) var isWritingMemoryEnabled: Bool
+    /// When on, Cotabby indexes all attached displays in the background for retrieval-ranked OCR.
+    @Published private(set) var isAmbientScreenIndexEnabled: Bool
     /// When on, a misspelled current word hides the normal continuation (see the typo gate).
     @Published private(set) var suppressCompletionsOnTypo: Bool
     /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled current word is offered a
@@ -215,6 +219,8 @@ final class SuggestionSettingsModel: ObservableObject {
         isClipboardContextEnabled = data.isClipboardContextEnabled
         isSurfaceContextEnabled = data.isSurfaceContextEnabled
         isFastModeEnabled = data.isFastModeEnabled
+        isWritingMemoryEnabled = data.isWritingMemoryEnabled
+        isAmbientScreenIndexEnabled = data.isAmbientScreenIndexEnabled
         suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
         offerTypoCorrections = data.offerTypoCorrections
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
@@ -290,6 +296,8 @@ final class SuggestionSettingsModel: ObservableObject {
         isClipboardContextEnabled = data.isClipboardContextEnabled
         isSurfaceContextEnabled = data.isSurfaceContextEnabled
         isFastModeEnabled = data.isFastModeEnabled
+        isWritingMemoryEnabled = data.isWritingMemoryEnabled
+        isAmbientScreenIndexEnabled = data.isAmbientScreenIndexEnabled
         suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
         offerTypoCorrections = data.offerTypoCorrections
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
@@ -384,6 +392,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 isClipboardContextEnabled: isClipboardContextEnabled,
                 isSurfaceContextEnabled: isSurfaceContextEnabled,
                 isFastModeEnabled: isFastModeEnabled,
+                isWritingMemoryEnabled: isWritingMemoryEnabled,
+                isAmbientScreenIndexEnabled: isAmbientScreenIndexEnabled,
                 userName: userName,
                 customRules: customRules,
                 responseLanguages: responseLanguages,
@@ -460,6 +470,8 @@ final class SuggestionSettingsModel: ObservableObject {
             addSpaceAfterAccept: settings.completion.addSpaceAfterAccept,
             streamSuggestionsWhileGenerating: settings.completion.streamSuggestionsWhileGenerating,
             isFastModeEnabled: settings.context.isFastModeEnabled,
+            isWritingMemoryEnabled: settings.context.isWritingMemoryEnabled,
+            isAmbientScreenIndexEnabled: settings.context.isAmbientScreenIndexEnabled,
             mirrorPreference: settings.presentation.mirrorPreference,
             acceptanceGranularity: settings.completion.acceptanceGranularity,
             suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
@@ -696,6 +708,24 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isFastModeEnabled = enabled
         store.saveFastModeEnabled(enabled)
+    }
+
+    func setWritingMemoryEnabled(_ enabled: Bool) {
+        guard isWritingMemoryEnabled != enabled else {
+            return
+        }
+
+        isWritingMemoryEnabled = enabled
+        store.saveWritingMemoryEnabled(enabled)
+    }
+
+    func setAmbientScreenIndexEnabled(_ enabled: Bool) {
+        guard isAmbientScreenIndexEnabled != enabled else {
+            return
+        }
+
+        isAmbientScreenIndexEnabled = enabled
+        store.saveAmbientScreenIndexEnabled(enabled)
     }
 
     func setSuppressCompletionsOnTypo(_ enabled: Bool) {
@@ -1367,10 +1397,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         return Publishers.CombineLatest4(
             primary,
             $acceptanceGranularity,
-            Publishers.CombineLatest3($extendedContext, $suggestInIntegratedTerminals, $isSurfaceContextEnabled),
+            Publishers.CombineLatest(
+                Publishers.CombineLatest3($extendedContext, $suggestInIntegratedTerminals, $isSurfaceContextEnabled),
+                Publishers.CombineLatest($isWritingMemoryEnabled, $isAmbientScreenIndexEnabled)
+            ),
             customRange
         )
-            .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
+            .map { primaryTuple, granularity, contextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
@@ -1380,7 +1413,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (debounce, focusPoll, multiLine, acceptToggles) = timing
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
+                let (extendedContextTuple, memoryToggles) = contextTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled) = extendedContextTuple
+                let (writingMemoryEnabled, ambientScreenIndexEnabled) = memoryToggles
                 return SuggestionSettingsSnapshot(
                     isGloballyEnabled: globallyEnabled,
                     isTemporarilyPaused: pauseState?.isActive() == true,
@@ -1403,6 +1438,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     addSpaceAfterAccept: addSpaceAfterAccept,
                     streamSuggestionsWhileGenerating: streamWhileGenerating,
                     isFastModeEnabled: fastModeEnabled,
+                    isWritingMemoryEnabled: writingMemoryEnabled,
+                    isAmbientScreenIndexEnabled: ambientScreenIndexEnabled,
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity,
                     suppressCompletionsOnTypo: suppressOnTypo,

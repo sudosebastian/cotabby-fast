@@ -25,6 +25,7 @@ import SwiftUI
 /// can type a trailing space; `SuggestionRequestFactory` does the once-per-request trim instead.
 struct ContextPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    let clearWritingMemory: () -> Void
 
     private static let previewEditorMinHeight: CGFloat = 132
     private static let extendedContextEditorMinHeight: CGFloat = 220
@@ -32,6 +33,7 @@ struct ContextPaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             livePreviewSection
+            memoryAndScreenSection
             extendedContextSection
             howThisIsUsedSection
         }
@@ -73,6 +75,41 @@ struct ContextPaneView: View {
             }
             .padding(.vertical, 6)
             .settingsItem(.contextLivePreview)
+        }
+    }
+
+    // MARK: - Writing memory & ambient screen
+
+    private var memoryAndScreenSection: some View {
+        Section("Memory & screen") {
+            Toggle(isOn: writingMemoryBinding) {
+                SettingsRowLabel(
+                    title: "Learn from accepts",
+                    description: "Remember rare terms and phrases you Tab-accept so suggestions can " +
+                        "reuse them. Stored only on this Mac; never sent as a full word list.",
+                    systemImage: "brain.head.profile"
+                )
+            }
+            .settingsItem(.writingMemory)
+
+            if suggestionSettings.isWritingMemoryEnabled {
+                Button("Clear Writing Memory", role: .destructive) {
+                    clearWritingMemory()
+                }
+                .font(.caption)
+            }
+
+            Toggle(isOn: ambientScreenBinding) {
+                SettingsRowLabel(
+                    title: "Index all displays",
+                    description: "In the background, OCR every attached display with Vision’s fast " +
+                        "mode and retrieve relevant lines for suggestions. Requires Screen Recording; " +
+                        "skipped in Fast Mode. Does not block typing.",
+                    systemImage: "rectangle.on.rectangle"
+                )
+            }
+            .settingsItem(.ambientScreenIndex)
+            .disabled(suggestionSettings.isFastModeEnabled)
         }
     }
 
@@ -163,6 +200,20 @@ struct ContextPaneView: View {
         Binding(
             get: { suggestionSettings.extendedContext },
             set: { suggestionSettings.setExtendedContext($0) }
+        )
+    }
+
+    private var writingMemoryBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isWritingMemoryEnabled },
+            set: { suggestionSettings.setWritingMemoryEnabled($0) }
+        )
+    }
+
+    private var ambientScreenBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isAmbientScreenIndexEnabled },
+            set: { suggestionSettings.setAmbientScreenIndexEnabled($0) }
         )
     }
 

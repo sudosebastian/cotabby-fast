@@ -18,6 +18,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case openAtLogin
     case includeClipboardContext
     case includeAppContext
+    case writingMemory
+    case ambientScreenIndex
     case allowMultiLine
     case inlineMacros
     case onboarding
@@ -103,6 +105,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .openAtLogin: return "Open at Login"
         case .includeClipboardContext: return "Include Clipboard Context"
         case .includeAppContext: return "Include App Context"
+        case .writingMemory: return "Learn from Accepts"
+        case .ambientScreenIndex: return "Index All Displays"
         case .allowMultiLine: return "Allow Multi-line Suggestions"
         case .acceptPunctuation: return "Accept Punctuation With Word"
         case .addSpaceAfterAccept: return "Add Space After Accepting"
@@ -178,6 +182,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .openAtLogin: return "arrow.right.circle"
         case .includeClipboardContext: return "doc.on.clipboard"
         case .includeAppContext: return "macwindow"
+        case .writingMemory: return "brain.head.profile"
+        case .ambientScreenIndex: return "rectangle.on.rectangle"
         case .allowMultiLine: return "text.alignleft"
         case .acceptPunctuation: return "textformat.abc"
         case .addSpaceAfterAccept: return "space"
@@ -260,7 +266,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
              .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
             return .writing
-        case .extendedContext, .contextLivePreview:
+        case .extendedContext, .contextLivePreview, .writingMemory, .ambientScreenIndex:
             return .context
         case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
              .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
@@ -290,6 +296,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .openAtLogin: return "Start Tabfast automatically when you log in."
         case .includeClipboardContext: return "Let suggestions reference what you last copied."
         case .includeAppContext: return "Tell the model which app and window you are typing in."
+        case .writingMemory: return "Learn rare terms and phrases from Tab accepts."
+        case .ambientScreenIndex: return "Background OCR of all displays for smarter screen context."
         case .allowMultiLine: return "Allow continuations that span more than one line."
         case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
@@ -377,6 +385,12 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeAppContext:
             return ["app", "window", "title", "surface", "domain", "site", "context",
                     "privacy", "metadata", "application"]
+        case .writingMemory:
+            return ["memory", "dictionary", "glossary", "learn", "accept", "vocabulary",
+                    "terms", "ngram", "history", "personal"]
+        case .ambientScreenIndex:
+            return ["display", "monitor", "ocr", "screen", "screenshot", "vision", "ambient",
+                    "multi", "retina", "index"]
         case .allowMultiLine:
             return ["multiline", "multi-line", "line", "newline", "wrap", "paragraph",
                     "long", "multiple lines", "line break"]

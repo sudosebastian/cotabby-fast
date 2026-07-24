@@ -56,6 +56,7 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because autocomplete settings changed.")
         state = .idle
+        syncAmbientScreenIndexer()
 
         // Cancel any obsolete context, then restart only when the subsystem is not disabled.
         visualContextCoordinator.cancel(resetState: true)

@@ -313,6 +313,7 @@ final class LlamaSuggestionEngine {
             languageInstruction: request.languageInstruction,
             clipboardContext: request.clipboardContext,
             visualContextSummary: request.visualContextSummary,
+            memoryGlossary: request.memoryGlossary,
             surfaceContext: request.surfaceContext,
             tokenBudget: SuggestionConfiguration.llamaPromptTokenBudgetWhenKVReuseUnavailable
         )

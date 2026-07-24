@@ -531,6 +531,11 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             clipboardContextProvider: StubClipboardContextProvider(),
             clipboardRelevanceFilter: StubClipboardRelevanceFilter(),
             visualContextCoordinator: StubVisualContextCoordinator(),
+            writingMemoryStore: WritingMemoryStore(
+                defaults: UserDefaults(suiteName: "CotabbyTests.memory.\(UUID().uuidString)") ?? .standard
+            ),
+            recentFocusRing: RecentFocusRing(),
+            ambientScreenIndexer: AmbientScreenIndexer(),
             interactionState: interactionState,
             workController: SuggestionWorkController(),
             configuration: .standard,

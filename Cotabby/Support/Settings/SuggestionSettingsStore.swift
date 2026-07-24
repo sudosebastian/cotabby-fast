@@ -123,6 +123,8 @@ struct SuggestionSettingsStore {
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let surfaceContextEnabledDefaultsKey = "cotabbySurfaceContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
+    private static let writingMemoryEnabledDefaultsKey = "cotabbyWritingMemoryEnabled"
+    private static let ambientScreenIndexEnabledDefaultsKey = "cotabbyAmbientScreenIndexEnabled"
     private static let suppressCompletionsOnTypoDefaultsKey = "cotabbySuppressCompletionsOnTypo"
     private static let offerTypoCorrectionsDefaultsKey = "cotabbyOfferTypoCorrections"
     private static let spellingDictionaryCodesDefaultsKey = "cotabbyEnabledSpellingDictionaryCodes"
@@ -203,6 +205,8 @@ struct SuggestionSettingsStore {
         clipboardContextEnabledDefaultsKey,
         surfaceContextEnabledDefaultsKey,
         fastModeEnabledDefaultsKey,
+        writingMemoryEnabledDefaultsKey,
+        ambientScreenIndexEnabledDefaultsKey,
         suppressCompletionsOnTypoDefaultsKey,
         offerTypoCorrectionsDefaultsKey,
         spellingDictionaryCodesDefaultsKey,
@@ -341,6 +345,12 @@ struct SuggestionSettingsStore {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
+        // Writing memory defaults on: accepts stay on-device and the glossary is tiny. Ambient
+        // multi-display indexing defaults off: it captures every screen and needs an explicit opt-in.
+        let resolvedWritingMemoryEnabled =
+            userDefaults.object(forKey: Self.writingMemoryEnabledDefaultsKey) as? Bool ?? true
+        let resolvedAmbientScreenIndexEnabled =
+            userDefaults.object(forKey: Self.ambientScreenIndexEnabledDefaultsKey) as? Bool ?? false
         // Hiding a completion on a misspelled current word and offering a fix remain the default
         // behavior. Automatic replacement is deliberately opt-in because it mutates host-app text
         // without a confirmation key.
@@ -570,6 +580,8 @@ struct SuggestionSettingsStore {
                 isClipboardContextEnabled: resolvedClipboardContextEnabled,
                 isSurfaceContextEnabled: resolvedSurfaceContextEnabled,
                 isFastModeEnabled: resolvedFastModeEnabled,
+                isWritingMemoryEnabled: resolvedWritingMemoryEnabled,
+                isAmbientScreenIndexEnabled: resolvedAmbientScreenIndexEnabled,
                 userName: resolvedUserName,
                 customRules: resolvedCustomRules,
                 responseLanguages: resolvedResponseLanguages,
@@ -639,6 +651,8 @@ struct SuggestionSettingsStore {
         saveClipboardContextEnabled(data.isClipboardContextEnabled)
         saveSurfaceContextEnabled(data.isSurfaceContextEnabled)
         saveFastModeEnabled(data.isFastModeEnabled)
+        saveWritingMemoryEnabled(data.isWritingMemoryEnabled)
+        saveAmbientScreenIndexEnabled(data.isAmbientScreenIndexEnabled)
         saveSuppressCompletionsOnTypo(data.suppressCompletionsOnTypo)
         saveOfferTypoCorrections(data.offerTypoCorrections)
         saveEnabledSpellingDictionaryCodes(data.enabledSpellingDictionaryCodes)
@@ -843,6 +857,14 @@ struct SuggestionSettingsStore {
 
     func saveFastModeEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
+    }
+
+    func saveWritingMemoryEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.writingMemoryEnabledDefaultsKey)
+    }
+
+    func saveAmbientScreenIndexEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.ambientScreenIndexEnabledDefaultsKey)
     }
 
     func saveSuppressCompletionsOnTypo(_ enabled: Bool) {
