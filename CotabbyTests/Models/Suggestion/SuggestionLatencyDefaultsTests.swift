@@ -11,6 +11,14 @@ final class SuggestionLatencyDefaultsTests: XCTestCase {
         XCTAssertEqual(configuration.maxPrefixWords, 80)
         XCTAssertEqual(configuration.maxPrefixCharacters, 1200)
         XCTAssertEqual(configuration.llamaPromptTokenBudget, 1024)
+        XCTAssertEqual(
+            SuggestionConfiguration.llamaPromptTokenBudgetWhenKVReuseUnavailable,
+            768
+        )
+        XCTAssertLessThan(
+            SuggestionConfiguration.llamaPromptTokenBudgetWhenKVReuseUnavailable,
+            SuggestionConfiguration.llamaPromptTokenBudgetCap
+        )
         XCTAssertLessThanOrEqual(
             SuggestionConfiguration.derivedLlamaPromptTokenBudget,
             SuggestionConfiguration.llamaPromptTokenBudgetCap

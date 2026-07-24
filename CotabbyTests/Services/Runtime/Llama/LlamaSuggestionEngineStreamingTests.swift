@@ -4,8 +4,8 @@ import XCTest
 @testable import Cotabby
 
 /// Tests for the llama engine's streaming contract: cumulative raw partials from the runtime are
-/// normalized and forwarded to `onPartial` on the main actor, and the final result still goes
-/// through the existing single-shot path (tracker recording, normalization, latency).
+/// coalesced, then normalized and forwarded to `onPartial` on the main actor. The final result still
+/// goes through the existing single-shot path (tracker recording, normalization, latency).
 @MainActor
 final class LlamaSuggestionEngineStreamingTests: XCTestCase {
 
@@ -20,13 +20,25 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
             partials.append(partial)
         }
 
-        // Partials hop to the main actor as tasks; drain before asserting.
-        try await drainUntil { partials.count >= 2 }
+        // Partials hop through the ~16ms coalescer then to the main actor; drain before asserting.
+        try await drainUntil { !partials.isEmpty }
 
         XCTAssertEqual(result.rawText, " world again")
-        XCTAssertEqual(partials.map(\.rawText), [" wor", " world ag"])
+        // Synchronous decode bursts collapse to latest-wins before MainActor normalize.
+        XCTAssertEqual(partials.map(\.rawText), [" world ag"])
         XCTAssertFalse(partials.contains { $0.text.isEmpty }, "Empty normalizations must be withheld, not forwarded.")
-        XCTAssertEqual(partials.map(\.generation), [1, 1], "Partials must carry the request generation for stale guards.")
+        XCTAssertEqual(partials.map(\.generation), [1], "Partials must carry the request generation for stale guards.")
+    }
+
+    func test_streamingGeneration_passesWordLimitInOptions() async throws {
+        let runtime = StreamingFakeRuntime()
+        runtime.finalText = " world"
+        let engine = LlamaSuggestionEngine(runtimeManager: runtime)
+        let request = makeRequest(prompt: "Hello", highWords: 7)
+
+        _ = try await engine.generateSuggestion(for: request)
+
+        XCTAssertEqual(runtime.lastOptions?.maximumCompletionWords, 7)
     }
 
     func test_plainGeneration_neverInvokesPartialHook() async throws {
@@ -46,12 +58,12 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
     /// Pumps the main actor until `condition` holds or a bounded number of yields elapse, so the
     /// forwarded-partial tasks get a chance to run without arbitrary sleeps.
     private func drainUntil(_ condition: () -> Bool) async throws {
-        for _ in 0..<200 where !condition() {
+        for _ in 0..<400 where !condition() {
             try await Task.sleep(nanoseconds: 2_000_000)
         }
     }
 
-    private func makeRequest(prompt: String) -> SuggestionRequest {
+    private func makeRequest(prompt: String, highWords: Int = 50) -> SuggestionRequest {
         let snapshot = FocusedInputSnapshot(
             applicationName: "TestApp",
             bundleIdentifier: "com.example.TestApp",
@@ -90,7 +102,8 @@ final class LlamaSuggestionEngineStreamingTests: XCTestCase {
             languageInstruction: nil,
             clipboardContext: nil,
             visualContextSummary: nil,
-            isMultiLineEnabled: false
+            isMultiLineEnabled: false,
+            completionWordRange: SuggestionWordRange(lowWords: 4, highWords: highWords)
         )
     }
 }
@@ -102,13 +115,15 @@ private final class StreamingFakeRuntime: LlamaRuntimeGenerating {
     var partialRawTexts: [String] = []
     var finalText = ""
     private(set) var streamingCallCount = 0
+    private(set) var lastOptions: LlamaGenerationOptions?
 
     func generate(
         prompt: String,
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
     ) async throws -> LlamaGenerationOutput {
-        .text(finalText)
+        lastOptions = options
+        return .text(finalText)
     }
 
     func generate(
@@ -118,6 +133,7 @@ private final class StreamingFakeRuntime: LlamaRuntimeGenerating {
         onPartialRawText: (@Sendable (String) -> Void)?
     ) async throws -> LlamaGenerationOutput {
         streamingCallCount += 1
+        lastOptions = options
         for partial in partialRawTexts {
             onPartialRawText?(partial)
         }

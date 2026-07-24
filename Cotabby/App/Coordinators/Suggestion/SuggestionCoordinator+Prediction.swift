@@ -119,7 +119,8 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            llamaPromptTokenBudgetOverride: llamaPromptTokenBudgetOverrideIfNeeded()
         )
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
@@ -235,7 +236,8 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            llamaPromptTokenBudgetOverride: llamaPromptTokenBudgetOverrideIfNeeded()
         )
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
@@ -299,6 +301,17 @@ extension SuggestionCoordinator {
                 await applyFailure(error.localizedDescription, workID: workID)
             }
         }
+    }
+
+    /// Shrinks the Open Source prompt once the loaded model has rejected partial KV trims and
+    /// therefore re-prefills every request. Other engines ignore the override.
+    private func llamaPromptTokenBudgetOverrideIfNeeded() -> Int? {
+        guard settingsSnapshot.selectedEngine == .llamaOpenSource,
+              llamaRejectsPartialKVTrimsProvider()
+        else {
+            return nil
+        }
+        return SuggestionConfiguration.llamaPromptTokenBudgetWhenKVReuseUnavailable
     }
 
     /// Resolves the clipboard prompt section under the pinning policy documented on

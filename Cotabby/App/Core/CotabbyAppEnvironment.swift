@@ -260,7 +260,10 @@ final class CotabbyAppEnvironment {
             spellChecker: spellChecker,
             symSpellCorrector: symSpellCorrector,
             spellingLanguageResolver: SpellingLanguageResolver(),
-            qualityMetricsStore: qualityMetricsStore
+            qualityMetricsStore: qualityMetricsStore,
+            llamaRejectsPartialKVTrimsProvider: { [weak runtimeManager] in
+                runtimeManager?.rejectsPartialKVTrims ?? false
+            }
         )
 
         // The emoji picker is a sibling to the suggestion coordinator. It reuses the input monitor,

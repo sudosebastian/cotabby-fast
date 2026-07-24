@@ -379,6 +379,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertFalse(options.forceWordContinuation)
         XCTAssertEqual(options.confidenceFloor, -.infinity)
         XCTAssertEqual(options.sentenceStopMinimumTokens, 2)
+        XCTAssertNil(options.maximumCompletionWords)
     }
 }
 

@@ -48,6 +48,12 @@ final class LlamaRuntimeManager: ObservableObject {
         refreshAvailableModels()
     }
 
+    /// Read-only view of whether the loaded model rejects partial KV trims. Used by request
+    /// construction to shrink the prompt budget on the full-reprefill path.
+    var rejectsPartialKVTrims: Bool {
+        core.rejectsPartialKVTrims
+    }
+
     /// Re-scans local runtime directories for GGUF files and republishes discovered options.
     /// This is called after model downloads so selection UI updates without app restart.
     func refreshAvailableModels() {
