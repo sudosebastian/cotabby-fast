@@ -154,6 +154,12 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool
+    /// When true, Tab accepts update a local rare-term / n-gram memory used for glossary retrieval
+    /// and high-confidence instant continuations.
+    let isWritingMemoryEnabled: Bool
+    /// When true (and Screen Recording is granted, Fast Mode off), Cotabby indexes all attached
+    /// displays in the background for retrieval-ranked screen context.
+    let isAmbientScreenIndexEnabled: Bool
     /// User preference for how suggestions are presented (inline ghost text vs popup card vs auto
     /// based on caret geometry quality). Travels in the snapshot so consumers can react to changes
     /// without subscribing to the settings model directly.

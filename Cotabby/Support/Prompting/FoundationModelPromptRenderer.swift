@@ -140,6 +140,12 @@ enum FoundationModelPromptRenderer {
             sections.append(summary)
         }
 
+        if let glossary = request.memoryGlossary,
+           !glossary.isEmpty {
+            sections.append("Terms the writer uses often:")
+            sections.append(glossary)
+        }
+
         if let clipboardContext = request.clipboardContext,
            !clipboardContext.isEmpty {
             sections.append("")

@@ -33,6 +33,12 @@ final class SuggestionCoordinator: ObservableObject {
     let clipboardContextProvider: any ClipboardContextProviding
     let clipboardRelevanceFilter: any ClipboardRelevanceFiltering
     let visualContextCoordinator: any VisualContextCoordinating
+    /// Local rare-term / n-gram memory learned from Tab accepts.
+    let writingMemoryStore: WritingMemoryStore
+    /// Recent focused surfaces used only as a retrieval ranking prior.
+    let recentFocusRing: RecentFocusRing
+    /// Background multi-display OCR index; never awaited on the keystroke path.
+    let ambientScreenIndexer: AmbientScreenIndexer
     let interactionState: SuggestionInteractionState
     let workController: SuggestionWorkController
     let configuration: SuggestionConfiguration
@@ -159,6 +165,9 @@ final class SuggestionCoordinator: ObservableObject {
         clipboardContextProvider: any ClipboardContextProviding,
         clipboardRelevanceFilter: any ClipboardRelevanceFiltering,
         visualContextCoordinator: any VisualContextCoordinating,
+        writingMemoryStore: WritingMemoryStore? = nil,
+        recentFocusRing: RecentFocusRing? = nil,
+        ambientScreenIndexer: AmbientScreenIndexer? = nil,
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,
         configuration: SuggestionConfiguration,
@@ -182,6 +191,9 @@ final class SuggestionCoordinator: ObservableObject {
         self.clipboardContextProvider = clipboardContextProvider
         self.clipboardRelevanceFilter = clipboardRelevanceFilter
         self.visualContextCoordinator = visualContextCoordinator
+        self.writingMemoryStore = writingMemoryStore ?? WritingMemoryStore()
+        self.recentFocusRing = recentFocusRing ?? RecentFocusRing()
+        self.ambientScreenIndexer = ambientScreenIndexer ?? AmbientScreenIndexer()
         self.interactionState = interactionState
         self.workController = workController
         self.configuration = configuration
@@ -217,6 +229,7 @@ final class SuggestionCoordinator: ObservableObject {
         permissionManager.screenRecordingGrantedPublisher
             .sink { [weak self] _ in
                 self?.handlePermissionChange()
+                self?.syncAmbientScreenIndexer()
             }
             .store(in: &cancellables)
 
@@ -280,6 +293,61 @@ final class SuggestionCoordinator: ObservableObject {
                 self?.handleSuggestionSettingsChange(snapshot)
             }
             .store(in: &cancellables)
+
+        // Align ambient indexing with the loaded settings / permission state once at construction.
+        syncAmbientScreenIndexer()
+    }
+
+    /// Applies writing-memory + ambient-index toggles and Screen Recording to the background indexer.
+    func syncAmbientScreenIndexer() {
+        let ambientAllowed =
+            settingsSnapshot.isAmbientScreenIndexEnabled
+            && !settingsSnapshot.isFastModeEnabled
+            && permissionManager.screenRecordingGranted
+        ambientScreenIndexer.setScreenRecordingGranted(permissionManager.screenRecordingGranted)
+        ambientScreenIndexer.setEnabled(ambientAllowed)
+    }
+
+    /// Builds retrieved screen + glossary context for the next request without awaiting OCR.
+    func retrievedPromptContext(
+        for context: FocusedInputContext,
+        prefixText: String
+    ) -> RetrievedPromptContext {
+        let fieldOCR = permissionManager.screenRecordingGranted
+            ? visualContextCoordinator.excerpt(for: context)
+            : nil
+        let memory = settingsSnapshot.isWritingMemoryEnabled
+            ? writingMemoryStore.snapshot()
+            : .empty
+        let ambientLines =
+            settingsSnapshot.isAmbientScreenIndexEnabled && !settingsSnapshot.isFastModeEnabled
+            ? ambientScreenIndexer.snapshot.lines
+            : []
+        return ContextualRetriever.retrieve(
+            prefixText: prefixText,
+            fieldOCR: fieldOCR,
+            ambientLines: ambientLines,
+            memory: memory,
+            recentFocus: recentFocusRing.snapshot(),
+            currentBundleIdentifier: context.bundleIdentifier
+        )
+    }
+
+    /// Records a focus surface into the recent-focus ring and nudges ambient refresh when useful.
+    func recordFocusForRetrieval(_ snapshot: FocusSnapshot) {
+        guard let context = snapshot.context else { return }
+        recentFocusRing.record(
+            applicationName: context.applicationName,
+            bundleIdentifier: context.bundleIdentifier,
+            windowTitle: context.windowTitle,
+            focusedURLString: context.focusedURLString,
+            ignoredBundleIdentifier: Bundle.main.bundleIdentifier
+        )
+        if settingsSnapshot.isAmbientScreenIndexEnabled,
+           !settingsSnapshot.isFastModeEnabled,
+           permissionManager.screenRecordingGranted {
+            ambientScreenIndexer.requestRefresh(reason: "focus-change")
+        }
     }
 
     /// Exposes the latest cancellation token for the split extension files.

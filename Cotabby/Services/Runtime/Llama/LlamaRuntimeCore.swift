@@ -121,7 +121,20 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
         self.preparedRuntime = result
         loggedTrimRejectionForCurrentModel = false
-        modelRejectsPartialTrims = false
+        // Catalog hybrid/SWA checkpoints cannot reuse trimmed KV. Mark that before the first
+        // generate/prefill so request #1 already skips doomed trim scans, skips useless prewarm,
+        // and uses the compact prompt budget — instead of learning only after a rejected trim.
+        let catalogRejectsTrims = RuntimeModelCatalog.rejectsPartialKVTrims(
+            forFilename: resolvedRuntime.modelFileURL.lastPathComponent
+        )
+        modelRejectsPartialTrims = catalogRejectsTrims
+        if catalogRejectsTrims {
+            loggedTrimRejectionForCurrentModel = true
+            CotabbyLogger.runtime.info(
+                "KV prefix reuse unavailable: catalog model uses a hybrid/SWA cache that rejects partial trims",
+                metadata: ["model": .string(resolvedRuntime.modelDisplayName)]
+            )
+        }
         CotabbyLogger.runtime.info(
             "Model loaded",
             metadata: [
@@ -130,7 +143,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 "batch_size": .stringConvertible(result.batchSize),
                 "threads": .stringConvertible(result.threadCount),
                 "gpu_layers": .stringConvertible(result.gpuLayerCount),
-                "backend": .string(result.backendName)
+                "backend": .string(result.backendName),
+                "rejects_partial_kv_trims": .stringConvertible(catalogRejectsTrims)
             ]
         )
         return result
@@ -183,22 +197,22 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         defer {
             // Skip when the cancel path already destroyed this sequence — trim/destroy against a
             // recycled slot would race the next request's createSequence.
-            guard autocompleteSequenceID == sequenceID else {
-                return
-            }
-            // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
-            // trim leaves the sampled tokens in KV while the tracker records prompt-only state.
-            // Destroy immediately so the next generate builds fresh without a doomed trim attempt,
-            // and remember that prefills for this model are pointless.
-            if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
-                modelRejectsPartialTrims = true
-                engine.destroySequence(sequenceID)
-                autocompleteSequenceID = -1
-                logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
-            } else {
-                autocompletePromptBytes = preparation.promptBytes
-                autocompletePromptTokens = preparation.promptTokens
-                autocompleteSamplingFingerprint = preparation.fingerprint
+            // Use `if` (not `guard`/`return`): Swift forbids transferring control out of `defer`.
+            if autocompleteSequenceID == sequenceID {
+                // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
+                // trim leaves the sampled tokens in KV while the tracker records prompt-only state.
+                // Destroy immediately so the next generate builds fresh without a doomed trim attempt,
+                // and remember that prefills for this model are pointless.
+                if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+                    modelRejectsPartialTrims = true
+                    engine.destroySequence(sequenceID)
+                    autocompleteSequenceID = -1
+                    logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
+                } else {
+                    autocompletePromptBytes = preparation.promptBytes
+                    autocompletePromptTokens = preparation.promptTokens
+                    autocompleteSamplingFingerprint = preparation.fingerprint
+                }
             }
         }
 
@@ -377,16 +391,17 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// discarded because the flag is set-once for a sequence's lifetime. `onPartialRawText`
     /// receives the cumulative raw completion after each sampled token, on the calling thread.
     ///
-    /// Completion text accumulates as UTF-8 bytes rather than a growing Swift `String`: `+=` on
-    /// String copies the whole buffer per token (O(n²) under a long decode). Materializing a
-    /// String once per token for stop policy / streaming is still O(n) but avoids the copy tax.
+    /// Completion text accumulates by appending each sampled piece. Pieces are already UTF-8
+    /// `String`s from `extractPiece`, and a uniquely-owned Swift `String` grows amortised-O(1)
+    /// per append — cheaper than rebuilding `String(bytes:)` from a growing byte buffer every
+    /// token (which was O(n) per sample = O(n²) over the decode).
     private func runEngineSampledDecode(
         sequenceID: Int32,
         options: LlamaGenerationOptions,
         onPartialRawText: ((String) -> Void)? = nil
     ) -> (output: LlamaGenerationOutput, engineCancelled: Bool) {
-        var generatedBytes: [UInt8] = []
-        generatedBytes.reserveCapacity(64)
+        var generatedText = ""
+        generatedText.reserveCapacity(64)
         var wordCounter = CompletionWordCounter()
         var tokensGenerated = 0
         var sumLogprob = 0.0
@@ -432,12 +447,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 break
             }
 
-            generatedBytes.append(contentsOf: piece.utf8)
+            generatedText += piece
             wordCounter.apply(piece)
             tokensGenerated += 1
             sumLogprob += Double(result.logprob)
 
-            let generatedText = String(bytes: generatedBytes, encoding: .utf8) ?? ""
             // Cumulative text, not the delta: consumers render whole partials, and cumulative
             // semantics make late or reordered deliveries harmless downstream.
             onPartialRawText?(generatedText)
@@ -459,7 +473,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             }
         }
 
-        let generatedText = String(bytes: generatedBytes, encoding: .utf8) ?? ""
         CotabbyLogger.runtime.debug(
             "Decode end",
             metadata: [

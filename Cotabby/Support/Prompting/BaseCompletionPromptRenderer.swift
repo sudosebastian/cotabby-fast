@@ -29,6 +29,7 @@ enum BaseCompletionPromptRenderer {
         languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
+        memoryGlossary: String? = nil,
         surfaceContext: SurfaceContext? = nil,
         contextBudget: Int = defaultContextBudget,
         tokenBudget: Int? = nil
@@ -63,6 +64,18 @@ enum BaseCompletionPromptRenderer {
             // the Settings extended-context field so a huge glossary cannot dominate every prefill
             // on the SWA re-prefill path; the prefix keeps top priority below.
             sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 700))
+        }
+        if let glossary = Self.nonEmpty(memoryGlossary) {
+            // Learned rare terms only — never a full frequency dictionary. Priority sits between
+            // user notes and clipboard so intentional Extended Context still wins when budgets bite.
+            sections.append(
+                Self.contextSection(
+                    "memory",
+                    "Terms the writer uses often: \(glossary)",
+                    priority: 38,
+                    maxChars: 240
+                )
+            )
         }
         if let clip = Self.nonEmpty(clipboardContext) {
             sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 240))

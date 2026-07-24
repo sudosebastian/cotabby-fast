@@ -38,6 +38,7 @@ enum SuggestionRequestFactory {
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
+        memoryGlossary: String? = nil,
         llamaPromptTokenBudgetOverride: Int? = nil
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
@@ -70,6 +71,7 @@ enum SuggestionRequestFactory {
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
         )
+        let boundedMemoryGlossary = activeMemoryGlossary(rawGlossary: memoryGlossary)
         // The composed surface description; nil when the user disabled it or the surface class
         // suppresses it (code editors, terminals, anonymous generic apps). The composer sanitizes
         // titles/placeholders and reduces the URL to a bare domain before anything reaches a prompt.
@@ -105,6 +107,7 @@ enum SuggestionRequestFactory {
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
+            memoryGlossary: boundedMemoryGlossary,
             surfaceContext: surfaceContext,
             tokenBudget: llamaTokenBudget
         )
@@ -135,6 +138,7 @@ enum SuggestionRequestFactory {
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
+            memoryGlossary: boundedMemoryGlossary,
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             completionWordRange: wordRange,
@@ -227,6 +231,21 @@ enum SuggestionRequestFactory {
         }
 
         return sanitizedSummary
+    }
+
+    private static func activeMemoryGlossary(rawGlossary: String?) -> String? {
+        guard let rawGlossary else {
+            return nil
+        }
+
+        let sanitized = PromptContextSanitizer.sanitize(rawGlossary)
+        guard !sanitized.isEmpty,
+              PromptContextSanitizer.containsAlphanumericSignal(sanitized)
+        else {
+            return nil
+        }
+
+        return clippedText(sanitized, maxCharacters: ContextualRetriever.maxGlossaryCharacters)
     }
 
     private static func clippedText(_ text: String, maxCharacters: Int) -> String {

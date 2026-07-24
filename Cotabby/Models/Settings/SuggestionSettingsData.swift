@@ -48,6 +48,10 @@ struct SuggestionContextSettings: Equatable {
     var isClipboardContextEnabled: Bool
     var isSurfaceContextEnabled: Bool
     var isFastModeEnabled: Bool
+    /// Learn rare terms and accepted phrases from Tab accepts for glossary + instant continuation.
+    var isWritingMemoryEnabled: Bool
+    /// Background OCR of all attached displays for retrieval-ranked screen context.
+    var isAmbientScreenIndexEnabled: Bool
     var userName: String
     var customRules: [String]
     var responseLanguages: [String]
@@ -264,6 +268,16 @@ extension SuggestionSettingsData {
     var isFastModeEnabled: Bool {
         get { context.isFastModeEnabled }
         set { context.isFastModeEnabled = newValue }
+    }
+
+    var isWritingMemoryEnabled: Bool {
+        get { context.isWritingMemoryEnabled }
+        set { context.isWritingMemoryEnabled = newValue }
+    }
+
+    var isAmbientScreenIndexEnabled: Bool {
+        get { context.isAmbientScreenIndexEnabled }
+        set { context.isAmbientScreenIndexEnabled = newValue }
     }
 
     var userName: String {

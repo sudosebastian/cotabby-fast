@@ -34,6 +34,7 @@ final class CotabbyAppEnvironment {
     let macroController: MacroController
     let inlineCommandCoordinator: InlineCommandCoordinator
     let emojiUsageStore: EmojiUsageStore
+    let writingMemoryStore: WritingMemoryStore
     let welcomeCoordinator: WelcomeCoordinator
     let huggingFaceSearchService: HuggingFaceSearchService
     let performanceMetricsStore: PerformanceMetricsStore
@@ -209,6 +210,9 @@ final class CotabbyAppEnvironment {
         // Per-user emoji recents/frequency. Built before the settings coordinator so the
         // "Clear History" control can reach it, and before the picker which reads and writes it.
         let emojiUsageStore = EmojiUsageStore()
+        let writingMemoryStore = WritingMemoryStore()
+        let recentFocusRing = RecentFocusRing()
+        let ambientScreenIndexer = AmbientScreenIndexer()
 
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
@@ -226,7 +230,8 @@ final class CotabbyAppEnvironment {
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
-            clearEmojiHistory: { emojiUsageStore.clear() }
+            clearEmojiHistory: { emojiUsageStore.clear() },
+            clearWritingMemory: { writingMemoryStore.clear() }
         )
 
         let interactionState = SuggestionInteractionState()
@@ -254,6 +259,9 @@ final class CotabbyAppEnvironment {
             clipboardContextProvider: clipboardContextProvider,
             clipboardRelevanceFilter: clipboardRelevanceFilter,
             visualContextCoordinator: visualContextCoordinator,
+            writingMemoryStore: writingMemoryStore,
+            recentFocusRing: recentFocusRing,
+            ambientScreenIndexer: ambientScreenIndexer,
             interactionState: interactionState,
             workController: workController,
             configuration: configuration,
@@ -324,6 +332,7 @@ final class CotabbyAppEnvironment {
         self.macroController = macroController
         self.inlineCommandCoordinator = inlineCommandCoordinator
         self.emojiUsageStore = emojiUsageStore
+        self.writingMemoryStore = writingMemoryStore
         self.welcomeCoordinator = welcomeCoordinator
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore

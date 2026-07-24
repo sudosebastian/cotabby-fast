@@ -642,6 +642,13 @@ extension SuggestionCoordinator {
 
         totalTabAcceptedWordCount += acceptedWordCount
         userDefaults.set(totalTabAcceptedWordCount, forKey: Self.totalTabAcceptedWordCountDefaultsKey)
+
+        if settingsSnapshot.isWritingMemoryEnabled {
+            writingMemoryStore.recordAcceptance(
+                acceptedText: acceptedChunk,
+                bundleIdentifier: focusModel.snapshot.context?.bundleIdentifier
+            )
+        }
     }
 
     // MARK: - Caret Prediction

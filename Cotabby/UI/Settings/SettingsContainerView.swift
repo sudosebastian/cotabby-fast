@@ -28,6 +28,7 @@ struct SettingsContainerView: View {
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
+    let clearWritingMemory: () -> Void
     let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -143,7 +144,10 @@ struct SettingsContainerView: View {
         case .writing:
             WritingPaneView(suggestionSettings: suggestionSettings)
         case .context:
-            ContextPaneView(suggestionSettings: suggestionSettings)
+            ContextPaneView(
+                suggestionSettings: suggestionSettings,
+                clearWritingMemory: clearWritingMemory
+            )
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:

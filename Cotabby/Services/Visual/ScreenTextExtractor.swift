@@ -71,20 +71,35 @@ private final class OCRContinuationResumer {
     }
 }
 
-struct ScreenTextExtractor: ScreenTextExtracting {
+/// Vision recognition quality for screenshot OCR.
+///
+/// `.accurate` is the field-crop default (once per focus). `.fast` is for ambient multi-display
+/// indexing where latency dominates and imperfect text is still useful for retrieval.
+enum ScreenTextRecognitionLevel: Sendable {
+    case accurate
+    case fast
+}
+
+struct ScreenTextExtractor: ScreenTextExtracting, Sendable {
     /// Vision cannot produce useful text from near-zero-sized request images. Treating those as
     /// empty OCR keeps degenerate screenshots on the same unavailable-context path as blank windows.
     private static let minimumOCRImageDimension = 4
 
     let maxImageDimension: Int
     let maxRecognizedCharacters: Int
+    let recognitionLevel: ScreenTextRecognitionLevel
+    let usesLanguageCorrection: Bool
 
     init(
         maxImageDimension: Int = VisualContextConfiguration.default.maxImageDimension,
-        maxRecognizedCharacters: Int = VisualContextConfiguration.default.maxRecognizedCharacters
+        maxRecognizedCharacters: Int = VisualContextConfiguration.default.maxRecognizedCharacters,
+        recognitionLevel: ScreenTextRecognitionLevel = .accurate,
+        usesLanguageCorrection: Bool = true
     ) {
         self.maxImageDimension = maxImageDimension
         self.maxRecognizedCharacters = maxRecognizedCharacters
+        self.recognitionLevel = recognitionLevel
+        self.usesLanguageCorrection = usesLanguageCorrection
     }
 
     /// Performs OCR asynchronously so the main actor is not blocked by Vision processing.
@@ -171,14 +186,17 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                     }
                 }
 
-                // Accurate OCR is slower, but visual context is only captured once per focused
-                // field and the result can materially improve autocomplete relevance. Language
-                // correction is on for the same reason: it cuts garbled recognitions at the
-                // source, which matters because this text conditions the prompt and the
-                // downstream hygiene filters can only drop junk, not repair it.
-                request.recognitionLevel = .accurate
-                request.usesLanguageCorrection = true
-                request.minimumTextHeight = 0.008
+                // Field crops use `.accurate` once per focus. Ambient multi-display indexing uses
+                // `.fast` so N Retina screens stay off the keystroke critical path. Language
+                // correction helps field OCR; ambient skips it for speed (hygiene still drops junk).
+                switch recognitionLevel {
+                case .accurate:
+                    request.recognitionLevel = .accurate
+                case .fast:
+                    request.recognitionLevel = .fast
+                }
+                request.usesLanguageCorrection = usesLanguageCorrection
+                request.minimumTextHeight = recognitionLevel == .fast ? 0.012 : 0.008
 
                 do {
                     let handler = VNImageRequestHandler(cgImage: preparedImage, options: [:])
