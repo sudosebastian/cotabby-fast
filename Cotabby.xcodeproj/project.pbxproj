@@ -3927,7 +3927,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabfast.dev)";
 				PRODUCT_MODULE_NAME = Cotabby;
 				PRODUCT_NAME = "Tabfast Dev";
@@ -3967,7 +3967,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabfast;
 				PRODUCT_MODULE_NAME = Cotabby;
 				PRODUCT_NAME = Tabfast;
@@ -4006,7 +4006,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabfast.dev)";
 				PRODUCT_MODULE_NAME = Cotabby;
 				PRODUCT_NAME = "Tabfast Dev";
@@ -4196,7 +4196,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabfast;
 				PRODUCT_MODULE_NAME = Cotabby;
 				PRODUCT_NAME = Tabfast;
