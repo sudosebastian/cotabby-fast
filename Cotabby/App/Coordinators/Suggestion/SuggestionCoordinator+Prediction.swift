@@ -1130,9 +1130,23 @@ extension SuggestionCoordinator {
     // MARK: - Visual Context
 
     /// Once screenshot context becomes ready, regenerate only if the user is still in the same
-    /// field and there is enough typed text for a real inline completion request.
+    /// field, there is enough typed text for a real inline completion request, and we are not
+    /// already showing a ready suggestion for that field. Regenerating immediately on OCR ready
+    /// cancelled an in-flight or visible completion and paid a second full llama round-trip for
+    /// often-minor prompt enrichment; the next keystroke naturally rebuilds with the excerpt.
     func schedulePredictionForCurrentFocusIfPossible(matching identity: FocusedInputIdentity) {
-        focusModel.refreshNow()
+        if case .ready = state, overlayState.isVisible, interactionState.activeSession != nil {
+            logStage(
+                "visual-context-ready-deferred",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Visual context became ready while a suggestion is already on screen; "
+                    + "keeping it and letting the next keystroke pick up the excerpt."
+            )
+            return
+        }
+
+        focusModel.refreshIfStale(maxAgeMilliseconds: 30)
         let snapshot = focusModel.snapshot
 
         guard SuggestionAvailabilityEvaluator.shouldSchedulePredictionWhenVisualContextBecomesReady(
