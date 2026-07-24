@@ -305,7 +305,9 @@ extension SuggestionCoordinator {
 
     /// Shrinks the Open Source prompt once the loaded model has rejected partial KV trims and
     /// therefore re-prefills every request. Other engines ignore the override.
-    private func llamaPromptTokenBudgetOverrideIfNeeded() -> Int? {
+    /// Internal (not `private`) so `SuggestionCoordinator+Input` can pass the same override into
+    /// field-entry prewarm requests — Swift `private` is file-scoped, and these live in different files.
+    func llamaPromptTokenBudgetOverrideIfNeeded() -> Int? {
         guard settingsSnapshot.selectedEngine == .llamaOpenSource,
               llamaRejectsPartialKVTrimsProvider()
         else {

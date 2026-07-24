@@ -183,22 +183,22 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         defer {
             // Skip when the cancel path already destroyed this sequence — trim/destroy against a
             // recycled slot would race the next request's createSequence.
-            guard autocompleteSequenceID == sequenceID else {
-                return
-            }
-            // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
-            // trim leaves the sampled tokens in KV while the tracker records prompt-only state.
-            // Destroy immediately so the next generate builds fresh without a doomed trim attempt,
-            // and remember that prefills for this model are pointless.
-            if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
-                modelRejectsPartialTrims = true
-                engine.destroySequence(sequenceID)
-                autocompleteSequenceID = -1
-                logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
-            } else {
-                autocompletePromptBytes = preparation.promptBytes
-                autocompletePromptTokens = preparation.promptTokens
-                autocompleteSamplingFingerprint = preparation.fingerprint
+            // Use `if` (not `guard`/`return`): Swift forbids transferring control out of `defer`.
+            if autocompleteSequenceID == sequenceID {
+                // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
+                // trim leaves the sampled tokens in KV while the tracker records prompt-only state.
+                // Destroy immediately so the next generate builds fresh without a doomed trim attempt,
+                // and remember that prefills for this model are pointless.
+                if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+                    modelRejectsPartialTrims = true
+                    engine.destroySequence(sequenceID)
+                    autocompleteSequenceID = -1
+                    logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
+                } else {
+                    autocompletePromptBytes = preparation.promptBytes
+                    autocompletePromptTokens = preparation.promptTokens
+                    autocompleteSamplingFingerprint = preparation.fingerprint
+                }
             }
         }
 
