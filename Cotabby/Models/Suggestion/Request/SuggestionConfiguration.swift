@@ -110,17 +110,24 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let focusPollIntervalMilliseconds: Int
 
     /// Output ceiling reserved out of the llama context window when sizing the prompt budget:
-    /// the largest realistic per-request token budget (multi-line doubles the 26-token default).
+    /// the largest realistic per-request token budget (multi-line doubles the short default).
     static let llamaPromptOutputCeilingTokens = 50
     /// Margin for BOS plus token-estimator error; the estimator skews conservative, so real
     /// prompts land under the derived budget.
     static let llamaPromptSafetyMarginTokens = 64
-    /// The per-sequence KV capacity minus the output ceiling and safety margin. Computed from
-    /// `LlamaRuntimeConfiguration.default` so the two constants cannot drift apart silently.
+    /// Hard cap on the llama prompt token budget. Catalog hybrid/SWA models often reject partial
+    /// KV trims and re-prefill the full prompt every request, so an uncapped ~2k-token preface
+    /// shows up directly in Performance pane Duration. 1024 keeps enough surrounding prose for
+    /// inline autocomplete without paying a multi-hundred-ms prefill on every keystroke.
+    static let llamaPromptTokenBudgetCap = 1024
+    /// The per-sequence KV capacity minus the output ceiling and safety margin, then capped for
+    /// the re-prefill latency path. Computed from `LlamaRuntimeConfiguration.default` so the
+    /// context-window constant cannot drift apart silently.
     static var derivedLlamaPromptTokenBudget: Int {
-        Int(LlamaRuntimeConfiguration.default.contextWindowTokens)
+        let capacityBudget = Int(LlamaRuntimeConfiguration.default.contextWindowTokens)
             - llamaPromptOutputCeilingTokens
             - llamaPromptSafetyMarginTokens
+        return min(capacityBudget, llamaPromptTokenBudgetCap)
     }
 
     /// The configuration shipped by the app today.
@@ -140,15 +147,11 @@ struct SuggestionConfiguration: Equatable, Sendable {
         minP: 0.08,
         repetitionPenalty: 1.05,
         randomSeed: nil,
-        maxPrefixWords: 150,
-        // The llama prefix window matches the Foundation Models one: the extra preceding sentences
-        // carry the topic and voice that multi-paragraph email/docs continuations need, and the
-        // token budget below keeps the total prompt bounded by what the model can hold. Latency
-        // honesty: where KV prefix reuse works (dense models), the larger window is prefilled once
-        // per field; the hybrid/SWA catalog models reject partial trims and re-prefill per request,
-        // so there the wider window costs prefill only when the field actually holds more than the
-        // old 1000-char cap, i.e. long-document sessions, which is exactly where it buys quality.
-        maxPrefixCharacters: 2500,
+        // Shorter llama prefix: hybrid/SWA catalog models re-prefill per request, so every extra
+        // preceding sentence is paid in Duration. 80 words / 1200 chars still covers the local
+        // paragraph while cutting the long-document prefill that dominated 300ms+ rows.
+        maxPrefixWords: 80,
+        maxPrefixCharacters: 1200,
         // Apple's on-device model has a 4096-token shared context. Even with instructions plus
         // visual/clipboard context, there is room to send ~3x the llama window before crowding
         // the prompt, and the extra surrounding sentences materially help mid-thought completions.
@@ -160,7 +163,10 @@ struct SuggestionConfiguration: Equatable, Sendable {
         llamaPromptTokenBudget: SuggestionConfiguration.derivedLlamaPromptTokenBudget,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
-        defaultWordCountPreset: .twelveToTwenty,
+        // Latency-first default: 4–7 English words ≈ 10 decode tokens. The previous 12–20
+        // default (≈26 tokens) was the dominant decode cost in Recent Requests. Users who want
+        // longer tails can still pick 7–12 or 12–20 in Settings / onboarding.
+        defaultWordCountPreset: .fourToSeven,
         focusPollIntervalMilliseconds: 50
     )
 }

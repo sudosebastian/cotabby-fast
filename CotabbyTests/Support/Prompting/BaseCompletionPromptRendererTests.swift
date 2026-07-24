@@ -123,9 +123,9 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
     }
 
     func test_tokenBudgetAdmitsAPrefixLargerThanTheOldCharacterBudget() {
-        // 2500 characters of ordinary prose is ~600 estimated tokens: comfortably inside the
-        // shipped token budget even though it exceeds the old 2400-character cap. The whole
-        // prefix must survive.
+        // ~2500 characters of ordinary prose is ~600 estimated tokens: still inside the
+        // latency-capped 1024-token budget even though it exceeds the renderer's 1600-character
+        // default context budget. The whole prefix must survive when the token budget is the gate.
         let prefix = String(repeating: "every word counts here ", count: 109) + "and the end"
         XCTAssertGreaterThan(prefix.count, 2400)
         let prompt = BaseCompletionPromptRenderer.prompt(

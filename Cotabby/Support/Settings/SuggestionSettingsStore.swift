@@ -69,13 +69,19 @@ struct SuggestionSettingsStore {
 
     /// Hard upper bound on the persisted Extended Context blob, in characters. Sized to match what the
     /// engines actually consume rather than what they can store: the OSS base path renders this as a
-    /// budgeted "notes" section (`BaseCompletionPromptRenderer`, `maxChars` 1300) inside a 2400-char
-    /// prompt, so a larger cap would just be clipped on-device instead of used. ~1200 chars (~300
-    /// tokens) is a meaningful glossary or style guide that still leaves room for the prefix and other
-    /// context, and stays well inside Apple's 4096-token window on the Foundation Models path. Keep this
-    /// at or below the notes section's `maxChars` minus its label so the full blob survives on the OSS
-    /// path. Larger pastes are truncated at write time so the cost is bounded on every request.
-    static let maximumExtendedContextCharacters: Int = 1_200
+    /// budgeted "notes" section (`BaseCompletionPromptRenderer`, `maxChars` 700) inside a 1600-char
+    /// prompt, so a larger cap would just be clipped on-device instead of used. ~650 chars leaves room
+    /// for the prefix and other context on the latency-capped llama path, and stays well inside
+    /// Apple's 4096-token window on the Foundation Models path. Keep this at or below the notes
+    /// section's `maxChars` minus its label so the full blob survives on the OSS path. Larger pastes
+    /// are truncated at write time so the cost is bounded on every request.
+    static let maximumExtendedContextCharacters: Int = 650
+
+    /// Previous shipped completion-length default (`12-20`). The one-time migration below moves
+    /// installs still on that old default to the latency-first `4-7` preset without touching an
+    /// intentional longer selection (7-12 / custom).
+    private static let previousDefaultWordCountPresetRawValue = "12-20"
+    private static let currentWordCountPresetDefaultRevision = 1
 
     // MARK: - UserDefaults keys
 
@@ -94,6 +100,7 @@ struct SuggestionSettingsStore {
     private static let openAICompatibleModelNameDefaultsKey = "cotabbyOpenAICompatibleModelName"
     private static let openAICompatibleAPIModeDefaultsKey = "cotabbyOpenAICompatibleAPIMode"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
+    private static let wordCountPresetDefaultRevisionDefaultsKey = "cotabbyWordCountPresetDefaultRevision"
     private static let usingCustomWordCountRangeDefaultsKey = "cotabbyUsingCustomWordCountRange"
     private static let customWordCountLowWordsDefaultsKey = "cotabbyCustomWordCountLowWords"
     private static let customWordCountHighWordsDefaultsKey = "cotabbyCustomWordCountHighWords"
@@ -179,6 +186,7 @@ struct SuggestionSettingsStore {
         openAICompatibleModelNameDefaultsKey,
         openAICompatibleAPIModeDefaultsKey,
         selectedWordCountPresetDefaultsKey,
+        wordCountPresetDefaultRevisionDefaultsKey,
         usingCustomWordCountRangeDefaultsKey,
         customWordCountLowWordsDefaultsKey,
         customWordCountHighWordsDefaultsKey,
@@ -292,8 +300,16 @@ struct SuggestionSettingsStore {
             if storedRaw == Self.legacyShortPresetRawValue {
                 return .fourToSeven
             }
-            return storedRaw.flatMap(SuggestionWordCountPreset.init(rawValue:))
-                ?? configuration.defaultWordCountPreset
+            let appliedDefaultRevision =
+                userDefaults.object(forKey: Self.wordCountPresetDefaultRevisionDefaultsKey) as? Int ?? 0
+            // One-shot product-default lowering: installs still on the old shipped `12-20` default
+            // move to latency-first `4-7`. An intentional 7-12 / custom / 2-4 selection is left alone.
+            // After the revision is recorded, choosing `12-20` again sticks.
+            return Self.resolvedWordCountPreset(
+                storedRaw: storedRaw,
+                appliedDefaultRevision: appliedDefaultRevision,
+                configurationDefault: configuration.defaultWordCountPreset
+            )
         }()
         let resolvedUsingCustomWordCountRange =
             userDefaults.object(forKey: Self.usingCustomWordCountRangeDefaultsKey) as? Bool ?? false
@@ -779,6 +795,14 @@ struct SuggestionSettingsStore {
 
     func saveSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {
         userDefaults.set(preset.rawValue, forKey: Self.selectedWordCountPresetDefaultsKey)
+        let persistedRevision =
+            userDefaults.object(forKey: Self.wordCountPresetDefaultRevisionDefaultsKey) as? Int ?? 0
+        if persistedRevision < Self.currentWordCountPresetDefaultRevision {
+            userDefaults.set(
+                Self.currentWordCountPresetDefaultRevision,
+                forKey: Self.wordCountPresetDefaultRevisionDefaultsKey
+            )
+        }
     }
 
     func saveUsingCustomWordCountRange(_ enabled: Bool) {
@@ -1024,6 +1048,25 @@ struct SuggestionSettingsStore {
         }
 
         return min(maximumFadeInDuration, max(minimumFadeInDuration, value))
+    }
+
+    /// Applies a product-default change once while keeping a person's non-default selection stable.
+    /// After the revision is recorded, even the old `12-20` value is treated as an intentional choice.
+    private static func resolvedWordCountPreset(
+        storedRaw: String?,
+        appliedDefaultRevision: Int,
+        configurationDefault: SuggestionWordCountPreset
+    ) -> SuggestionWordCountPreset {
+        guard appliedDefaultRevision < currentWordCountPresetDefaultRevision else {
+            return storedRaw.flatMap(SuggestionWordCountPreset.init(rawValue:)) ?? configurationDefault
+        }
+        guard let storedRaw else {
+            return configurationDefault
+        }
+        if storedRaw == previousDefaultWordCountPresetRawValue {
+            return configurationDefault
+        }
+        return SuggestionWordCountPreset(rawValue: storedRaw) ?? configurationDefault
     }
 
     /// Applies a product-default change once while keeping a person's non-default selection stable.

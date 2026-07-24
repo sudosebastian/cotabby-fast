@@ -27,6 +27,38 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.selectedWordCountPreset, .fourToSeven)
     }
 
+    func test_load_migratesShippedTwelveToTwentyDefaultToFourToSeven() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set("12-20", forKey: "cotabbySelectedWordCountPreset")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.selectedWordCountPreset, .fourToSeven)
+        XCTAssertEqual(defaults.integer(forKey: "cotabbyWordCountPresetDefaultRevision"), 1)
+    }
+
+    func test_load_preservesIntentionalSevenToTwelveDuringWordCountDefaultMigration() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set("7-12", forKey: "cotabbySelectedWordCountPreset")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.selectedWordCountPreset, .sevenToTwelve)
+        XCTAssertEqual(defaults.integer(forKey: "cotabbyWordCountPresetDefaultRevision"), 1)
+    }
+
+    func test_load_preservesTwelveToTwentyChosenAfterWordCountDefaultMigration() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        defaults.set("12-20", forKey: "cotabbySelectedWordCountPreset")
+        XCTAssertEqual(store.load(configuration: .standard).selectedWordCountPreset, .fourToSeven)
+
+        store.saveSelectedWordCountPreset(.twelveToTwenty)
+
+        let data = store.load(configuration: .standard)
+        XCTAssertEqual(data.selectedWordCountPreset, .twelveToTwenty)
+    }
+
     // MARK: - Indicator mode vs legacy bool
 
     func test_load_prefersIndicatorModeOverLegacyBool() async {
