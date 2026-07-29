@@ -363,6 +363,7 @@ struct LateHostPublishBaseline {
     let precedingText: String?
     let elementIdentifier: String?
     let selectionLocation: Int?
+    let selectionLength: Int?
     let keystrokeUptimeNanoseconds: UInt64
     let pollGeneration: UInt64
 }

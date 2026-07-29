@@ -25,10 +25,19 @@ extension SuggestionCoordinator {
         keyName: String
     ) -> Bool {
         // Accept runs inside the consuming tap before the host has necessarily published any
-        // typeahead that landed since the last focus poll. Prefer a fresh-enough capture over a
-        // forced walk so rapid Tab does not stack AX IPC on every accept; refreshIfStale still
-        // forces a read when the snapshot is older than one focus-poll window.
-        focusModel.refreshIfStale(maxAgeMilliseconds: 30)
+        // typeahead that landed since the last focus poll. Soft reuse (`refreshIfStale(30)`) was
+        // a latency win but reopened character-eat when typeahead landed after the last capture —
+        // especially on the correction replace path. Force a walk when the snapshot is older than
+        // a short typeahead window; corrections always force (see policy).
+        let isCorrection = interactionState.activeSession?.kind.isCorrection == true
+        if SuggestionAcceptFreshnessPolicy.requiresForcedRefresh(
+            isCorrection: isCorrection,
+            millisecondsSinceLastCapture: focusModel.millisecondsSinceLastCapture
+        ) {
+            focusModel.refreshNow()
+        } else {
+            focusModel.refreshIfStale(maxAgeMilliseconds: 10)
+        }
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -363,10 +372,10 @@ extension SuggestionCoordinator {
         keyName: String,
         rawContext: FocusedInputSnapshot
     ) -> Bool {
-        // `acceptSuggestion` already refreshed if stale; only force another capture when the
-        // snapshot aged out during correction planning. Re-plan against that live preceding text
-        // before posting backspaces.
-        focusModel.refreshIfStale(maxAgeMilliseconds: 30)
+        // Corrections post backspaces sized from live preceding text. Always force a fresh capture
+        // immediately before planning — a soft reuse window is how typeahead between the accept
+        // tap and the replace burst produced wrong delete counts (literal character eats).
+        focusModel.refreshNow()
         let livePrecedingText = focusModel.snapshot.context?.precedingText ?? rawContext.precedingText
 
         // Confirm the live field still ends with the exact word we offered to correct (tolerating
@@ -522,6 +531,13 @@ extension SuggestionCoordinator {
         // the key.
         if !acceptCurrentSuggestion() {
             let replayed = suggestionInserter.replayTabKey()
+            if !replayed {
+                // The original Tab was already consumed while the post-exhaustion window was armed.
+                // If synthetic replay fails, drop interception immediately so the *next* Tab can
+                // reach the host instead of being eaten by a still-armed accept tap.
+                inputMonitor.setAcceptInterceptionActive(false)
+                clearPostExhaustionAcceptanceWindow()
+            }
             logStage(
                 "flush-queued-accept-failed",
                 workID: currentWorkID,
@@ -529,7 +545,7 @@ extension SuggestionCoordinator {
                 message: "Flushed a queued post-exhaustion Tab, but the follow-up acceptance returned false."
                     + (replayed
                         ? " Replayed Tab to the host."
-                        : " Tab replay failed; the original key remains consumed.")
+                        : " Tab replay failed; released accept interception so the next Tab reaches the host.")
             )
         }
     }

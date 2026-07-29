@@ -36,24 +36,41 @@ nonisolated enum BrowserAppDetector {
         "com.microsoft.edgemac"
     ]
 
-    /// Electron apps (Chromium under the hood) that ship editors worth covering. This is an
-    /// intentional named allowlist, not a blanket Electron opt-in: most Electron apps are not
-    /// text-editing surfaces, and priming them wholesale risks unexpected behavior.
+    /// Electron apps (Chromium under the hood) whose focused text surfaces we intentionally cover.
+    /// This is a named allowlist, not a blanket Electron opt-in: most Electron apps are not
+    /// writing surfaces, and priming them wholesale risks unexpected behavior.
     ///
-    /// Entries are lowercased and matched case-insensitively (see `isElectronEditor`). VS Code's real
-    /// bundle id is the mixed-case `com.microsoft.VSCode`, so an exact match would silently miss it
-    /// and leave the editor's entire Electron AX tree dormant: no focused field resolves for the
-    /// editor, the Copilot chat, or the integrated terminal, so no suggestions appear anywhere in the
-    /// app even though screenshot-based OCR keeps working.
+    /// Entries are lowercased and matched case-insensitively (see `isElectronEditor`). VS Code's
+    /// real bundle id is the mixed-case `com.microsoft.VSCode`, so an exact match would silently
+    /// miss it and leave the editor's entire Electron AX tree dormant.
     ///
-    /// Cursor is intentionally absent: it ships under opaque ToDesktop bundle ids
-    /// (`com.todesktop.<hash>`) that change between builds, so there is no stable id to allowlist
-    /// here without a broad `com.todesktop.` prefix that would also prime unrelated ToDesktop apps.
+    /// Chat clients (Slack/Discord/Teams) are included because their message composers are the
+    /// writing surfaces users expect Cotabby in — without priming those trees stay empty and the
+    /// app looks "disabled" even though it is not on the user blocklist.
+    ///
+    /// Cursor / Windsurf ship under opaque ToDesktop hashes (`com.todesktop.<hash>`) that change
+    /// between builds; those are matched separately via `isToDesktopElectronTextSurface` using
+    /// the application display name so unrelated ToDesktop apps are not primed.
     private static let electronEditorBundleIdentifiers: Set<String> = [
         "com.clickup.desktop-app",
         "com.microsoft.vscode",          // Visual Studio Code
         "com.microsoft.vscodeinsiders",  // VS Code - Insiders
-        "com.vscodium"                   // VSCodium (FOSS VS Code build)
+        "com.vscodium",                  // VSCodium (FOSS VS Code build)
+        "com.tinyspeck.slackmacgap",     // Slack
+        "com.hnc.discord",               // Discord
+        "com.microsoft.teams2",          // Microsoft Teams (new)
+        "com.microsoft.teams",           // Microsoft Teams (legacy)
+        "notion.id",                     // Notion
+        "com.linear",                    // Linear
+        "dev.zed.zed",                   // Zed
+        "com.exafunction.windsurf"       // Windsurf (stable id when not ToDesktop)
+    ]
+
+    /// Display-name tokens that identify ToDesktop-packaged editors we cover. Compared
+    /// case-insensitively against `NSRunningApplication.localizedName`.
+    private static let toDesktopEditorApplicationNames: Set<String> = [
+        "cursor",
+        "windsurf"
     ]
 
     /// Broad check: is the user typing inside any web browser? Used for prompt tone hints.
@@ -66,20 +83,52 @@ nonisolated enum BrowserAppDetector {
         hasMatchingPrefix(bundleIdentifier, in: chromiumBundlePrefixes)
     }
 
-    /// Is this a named Electron editor we intentionally cover? Case-insensitive because macOS bundle
-    /// ids are case-insensitive in practice and VS Code's is mixed-case (`com.microsoft.VSCode`); a
-    /// case-sensitive exact match here was the reason VS Code resolved no focus and got no suggestions.
+    /// Is this a named Electron text surface we intentionally cover? Case-insensitive because
+    /// macOS bundle ids are case-insensitive in practice and VS Code's is mixed-case.
     static func isElectronEditor(bundleIdentifier: String?) -> Bool {
         guard let lowered = bundleIdentifier?.lowercased() else { return false }
         return electronEditorBundleIdentifiers.contains(lowered)
     }
 
+    /// Cursor/Windsurf (and similar) packaged by ToDesktop: bundle ids are opaque hashes under
+    /// `com.todesktop.`, so the display name is the only durable identity. Requires both the
+    /// ToDesktop prefix and a known editor name — a bare `com.todesktop.` match would prime
+    /// unrelated ToDesktop apps.
+    static func isToDesktopElectronTextSurface(
+        bundleIdentifier: String?,
+        applicationName: String?
+    ) -> Bool {
+        guard let bundle = bundleIdentifier?.lowercased(),
+              bundle.hasPrefix("com.todesktop.")
+        else {
+            return false
+        }
+        guard let name = applicationName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+            !name.isEmpty
+        else {
+            return false
+        }
+        if toDesktopEditorApplicationNames.contains(name) {
+            return true
+        }
+        // "Cursor Helper", "Cursor Nightly", etc.
+        return toDesktopEditorApplicationNames.contains { name.hasPrefix($0 + " ") }
+    }
+
     /// Gate for the Chromium/Electron-specific AX recovery paths (renderer priming, cursor
     /// hit-testing, deeper candidate walk). True only for apps that actually hide web text behind
-    /// the lazy web-AX model.
-    static func needsWebAccessibilityPriming(bundleIdentifier: String?) -> Bool {
+    /// the lazy web-AX model. `applicationName` unlocks ToDesktop editor detection.
+    static func needsWebAccessibilityPriming(
+        bundleIdentifier: String?,
+        applicationName: String? = nil
+    ) -> Bool {
         isChromiumBrowser(bundleIdentifier: bundleIdentifier)
             || isElectronEditor(bundleIdentifier: bundleIdentifier)
+            || isToDesktopElectronTextSurface(
+                bundleIdentifier: bundleIdentifier,
+                applicationName: applicationName
+            )
     }
 
     private static func hasMatchingPrefix(_ bundleIdentifier: String?, in prefixes: [String]) -> Bool {

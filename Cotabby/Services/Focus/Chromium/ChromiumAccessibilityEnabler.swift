@@ -46,8 +46,9 @@ final class ChromiumAccessibilityEnabler {
         lastFrontmostPID = pid
 
         guard BrowserAppDetector.needsWebAccessibilityPriming(
-            bundleIdentifier: application.bundleIdentifier)
-        else {
+            bundleIdentifier: application.bundleIdentifier,
+            applicationName: application.localizedName
+        ) else {
             return
         }
 
@@ -55,8 +56,16 @@ final class ChromiumAccessibilityEnabler {
             return
         }
 
-        let reassertForElectronEditor = isActivationEdge
-            && BrowserAppDetector.isElectronEditor(bundleIdentifier: application.bundleIdentifier)
+        // ToDesktop editors (Cursor) and named Electron surfaces both need the activation-edge
+        // re-assert: the first AXManualAccessibility write can return success while the tree stays
+        // dormant until the app is frontmost again.
+        let isElectronTextSurface =
+            BrowserAppDetector.isElectronEditor(bundleIdentifier: application.bundleIdentifier)
+            || BrowserAppDetector.isToDesktopElectronTextSurface(
+                bundleIdentifier: application.bundleIdentifier,
+                applicationName: application.localizedName
+            )
+        let reassertForElectronEditor = isActivationEdge && isElectronTextSurface
         guard !primedPIDs.contains(pid) || reassertForElectronEditor else {
             return
         }
