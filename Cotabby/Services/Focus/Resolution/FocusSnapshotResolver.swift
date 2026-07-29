@@ -93,7 +93,9 @@ struct FocusSnapshotResolver {
         // Chromium/Electron focus a wrapper several levels above the real editable, so for those
         // apps we additionally search descendants for the editable node.
         let deepDescendants = BrowserAppDetector.needsWebAccessibilityPriming(
-            bundleIdentifier: bundleIdentifier)
+            bundleIdentifier: bundleIdentifier,
+            applicationName: applicationName
+        )
         let candidateResolution = resolveCandidate(
             around: FocusedElementReading(
                 element: focusedElement,

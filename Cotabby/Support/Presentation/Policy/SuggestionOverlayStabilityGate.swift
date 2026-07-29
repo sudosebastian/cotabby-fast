@@ -31,6 +31,12 @@ enum SuggestionOverlayStabilityGate {
     /// so a genuine one-character caret move still re-anchors while noise and residual are absorbed.
     private static let caretDriftTolerance: CGFloat = 6
 
+    /// Layout-estimated anchors ignore ordinary caret drift (raw AX vs TextKit live in different
+    /// trust systems). After the post-accept hold expires, a disagreement larger than this still
+    /// re-anchors so a badly wrong estimate cannot stick for the rest of the field session.
+    /// ~3 body characters at 14pt — above normal AXFrame guess noise, below a full wrong line.
+    private static let layoutEstimatedRescueDriftTolerance: CGFloat = 24
+
     /// Returns `true` when the coordinator should call `presentOverlay` for this reconcile tick.
     /// Returns `false` to hold the existing overlay geometry exactly as it was last drawn.
     ///
@@ -90,6 +96,24 @@ enum SuggestionOverlayStabilityGate {
         return !(isBackward && insideHoldWindow)
     }
 
+    /// Large raw-AX disagreement against a layout-estimated overlay, only after the post-accept
+    /// hold. Ordinary AXFrame/estimator skew stays held so we do not re-estimate every poll.
+    private static func layoutEstimatedRescueDemandsReAnchor(
+        currentGeometry: SuggestionOverlayGeometry,
+        newCaretRect: CGRect,
+        millisecondsSinceLastAcceptance: Int?
+    ) -> Bool {
+        let insideHoldWindow = millisecondsSinceLastAcceptance
+            .map { $0 <= backwardDriftHoldWindowMilliseconds } ?? false
+        guard !insideHoldWindow else {
+            return false
+        }
+        let deltaX = abs(newCaretRect.origin.x - currentGeometry.caretRect.origin.x)
+        let deltaY = abs(newCaretRect.origin.y - currentGeometry.caretRect.origin.y)
+        return deltaX > layoutEstimatedRescueDriftTolerance
+            || deltaY > layoutEstimatedRescueDriftTolerance
+    }
+
     static func shouldRePresent(
         currentOverlay: OverlayState,
         newText: String,
@@ -119,15 +143,22 @@ enum SuggestionOverlayStabilityGate {
         // frame, style), not from the resolver's caret. Fresh snapshots still carry the RAW
         // resolver rect (an AXFrame proportional guess, or a derived rect the repair overrode),
         // which lives in a different trust system and routinely sits a word or more away from the
-        // estimate; treating that gap as caret drift re-presented (and re-estimated) on every
-        // reconcile tick. With text and field unchanged the estimate is pure-function stable, so
-        // only the frame check below can demand a re-anchor for these overlays.
-        if currentGeometry.caretQuality != .layoutEstimated,
-           caretDriftDemandsReAnchor(
-               currentGeometry: currentGeometry,
-               newCaretRect: newCaretRect,
-               millisecondsSinceLastAcceptance: millisecondsSinceLastAcceptance
-           ) {
+        // estimate; treating that ordinary gap as caret drift re-presented (and re-estimated) on
+        // every reconcile tick. After the post-accept hold expires, a *large* disagreement still
+        // rescues a stuck wrong estimate; ordinary noise stays held.
+        if currentGeometry.caretQuality == .layoutEstimated {
+            if layoutEstimatedRescueDemandsReAnchor(
+                currentGeometry: currentGeometry,
+                newCaretRect: newCaretRect,
+                millisecondsSinceLastAcceptance: millisecondsSinceLastAcceptance
+            ) {
+                return true
+            }
+        } else if caretDriftDemandsReAnchor(
+            currentGeometry: currentGeometry,
+            newCaretRect: newCaretRect,
+            millisecondsSinceLastAcceptance: millisecondsSinceLastAcceptance
+        ) {
             return true
         }
         // `observedCharWidth` is intentionally NOT compared here. Drift in that value also affects

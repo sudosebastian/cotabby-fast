@@ -376,7 +376,9 @@ final class FocusTracker {
     private func resolveChromiumFocusFallback() -> (element: AXUIElement, application: NSRunningApplication)? {
         guard let frontmost = NSWorkspace.shared.frontmostApplication,
             BrowserAppDetector.needsWebAccessibilityPriming(
-                bundleIdentifier: frontmost.bundleIdentifier)
+                bundleIdentifier: frontmost.bundleIdentifier,
+                applicationName: frontmost.localizedName
+            )
         else {
             chromiumHitTestCache = nil
             return nil

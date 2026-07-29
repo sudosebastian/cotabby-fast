@@ -279,9 +279,12 @@ extension SuggestionCoordinator {
         ) { [weak self] in
             self?.pollForHostPublish(
                 baseline: HostPublishBaseline(
-                    precedingText: baseline?.precedingText,
-                    elementIdentifier: baseline?.elementIdentifier,
-                    selectionLocation: baseline?.selection.location,
+                    changeBaseline: HostPublishChangeDetector.Baseline(
+                        precedingText: baseline?.precedingText,
+                        elementIdentifier: baseline?.elementIdentifier,
+                        selectionLocation: baseline?.selection.location,
+                        selectionLength: baseline?.selection.length
+                    ),
                     keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds
                 ),
                 pollGeneration: pollGeneration,
@@ -293,9 +296,7 @@ extension SuggestionCoordinator {
     /// The AX state captured at keystroke time, against which the host-publish poll detects "the
     /// host has processed the key", plus the uptime anchor for folding the wait into the debounce.
     private struct HostPublishBaseline {
-        let precedingText: String?
-        let elementIdentifier: String?
-        let selectionLocation: Int?
+        let changeBaseline: HostPublishChangeDetector.Baseline
         let keystrokeUptimeNanoseconds: UInt64
     }
 
@@ -323,10 +324,16 @@ extension SuggestionCoordinator {
 
         // No focus context at all means the user moved away from any editable field — let
         // `schedulePrediction` and its downstream guards handle the disabled / unsupported state.
-        let textChanged = currentContext?.precedingText != baseline.precedingText
-        let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
-        let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
-        if textChanged || elementChanged || selectionChanged {
+        let published = HostPublishChangeDetector.hasPublished(
+            from: baseline.changeBaseline,
+            to: HostPublishChangeDetector.Snapshot(
+                precedingText: currentContext?.precedingText,
+                elementIdentifier: currentContext?.elementIdentifier,
+                selectionLocation: currentContext?.selection.location,
+                selectionLength: currentContext?.selection.length
+            )
+        )
+        if published {
             endHostPublishCaptureIfCurrent(pollGeneration: pollGeneration)
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
@@ -360,9 +367,10 @@ extension SuggestionCoordinator {
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
             endHostPublishCaptureIfCurrent(pollGeneration: pollGeneration)
             pendingLateHostPublish = LateHostPublishBaseline(
-                precedingText: baseline.precedingText,
-                elementIdentifier: baseline.elementIdentifier,
-                selectionLocation: baseline.selectionLocation,
+                precedingText: baseline.changeBaseline.precedingText,
+                elementIdentifier: baseline.changeBaseline.elementIdentifier,
+                selectionLocation: baseline.changeBaseline.selectionLocation,
+                selectionLength: baseline.changeBaseline.selectionLength,
                 keystrokeUptimeNanoseconds: baseline.keystrokeUptimeNanoseconds,
                 pollGeneration: pollGeneration
             )
@@ -394,10 +402,21 @@ extension SuggestionCoordinator {
             return false
         }
 
-        let textChanged = focusedContext.precedingText != baseline.precedingText
-        let elementChanged = focusedContext.elementIdentifier != baseline.elementIdentifier
-        let selectionChanged = focusedContext.selection.location != baseline.selectionLocation
-        guard textChanged || elementChanged || selectionChanged else {
+        let published = HostPublishChangeDetector.hasPublished(
+            from: HostPublishChangeDetector.Baseline(
+                precedingText: baseline.precedingText,
+                elementIdentifier: baseline.elementIdentifier,
+                selectionLocation: baseline.selectionLocation,
+                selectionLength: baseline.selectionLength
+            ),
+            to: HostPublishChangeDetector.Snapshot(
+                precedingText: focusedContext.precedingText,
+                elementIdentifier: focusedContext.elementIdentifier,
+                selectionLocation: focusedContext.selection.location,
+                selectionLength: focusedContext.selection.length
+            )
+        )
+        guard published else {
             return false
         }
 

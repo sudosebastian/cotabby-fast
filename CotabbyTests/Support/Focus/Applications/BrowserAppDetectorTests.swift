@@ -37,9 +37,42 @@ final class BrowserAppDetectorTests: XCTestCase {
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.microsoft.VSCode"))
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.microsoft.VSCodeInsiders"))
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.vscodium"))
+        // Chat composers are writing surfaces users expect Cotabby in; without priming their trees
+        // stay empty and the app looks disabled despite not being on the user blocklist.
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.tinyspeck.slackmacgap"))
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "notion.id"))
         // Electron, but not a text-editing surface we cover: must stay out of the priming allowlist.
-        XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
+        XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.spotify.client"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
+    }
+
+    func testToDesktopEditorRequiresKnownDisplayName() {
+        XCTAssertTrue(
+            BrowserAppDetector.isToDesktopElectronTextSurface(
+                bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+                applicationName: "Cursor"
+            )
+        )
+        XCTAssertTrue(
+            BrowserAppDetector.isToDesktopElectronTextSurface(
+                bundleIdentifier: "com.todesktop.abcdef",
+                applicationName: "Cursor Nightly"
+            )
+        )
+        // Bare ToDesktop prefix must not prime unrelated apps.
+        XCTAssertFalse(
+            BrowserAppDetector.isToDesktopElectronTextSurface(
+                bundleIdentifier: "com.todesktop.abcdef",
+                applicationName: "Some Other App"
+            )
+        )
+        XCTAssertFalse(
+            BrowserAppDetector.isToDesktopElectronTextSurface(
+                bundleIdentifier: "com.todesktop.abcdef",
+                applicationName: nil
+            )
+        )
     }
 
     func testNeedsPrimingForChromiumAndElectronOnly() {
@@ -49,6 +82,20 @@ final class BrowserAppDetectorTests: XCTestCase {
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.clickup.desktop-app"))
         XCTAssertTrue(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.microsoft.VSCode"))
+        XCTAssertTrue(
+            BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.hnc.Discord"))
+        XCTAssertTrue(
+            BrowserAppDetector.needsWebAccessibilityPriming(
+                bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+                applicationName: "Cursor"
+            )
+        )
+        XCTAssertFalse(
+            BrowserAppDetector.needsWebAccessibilityPriming(
+                bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+                applicationName: "Not Cursor"
+            )
+        )
         XCTAssertFalse(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.apple.Safari"))
         XCTAssertFalse(

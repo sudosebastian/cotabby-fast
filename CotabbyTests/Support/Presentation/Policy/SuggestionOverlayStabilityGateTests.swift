@@ -339,7 +339,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
         // resolver caret (an AXFrame proportional guess), which routinely sits a word or more
         // away. Treating that gap as drift re-presented and re-estimated on every reconcile
         // tick, and around accepts it was the jerk-left-then-back: with text and field unchanged
-        // the estimate cannot move, so the gate must hold.
+        // the estimate cannot move, so the gate must hold for ordinary disagreement.
         let current: OverlayState = .visible(
             text: " again",
             geometry: Self.geometry(
@@ -356,6 +356,39 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
                 newCaretRect: Self.caretRect,
                 newInputFrameRect: Self.inputFrame,
                 newFocusChangeSequence: 7
+            )
+        )
+    }
+
+    func test_layoutEstimatedAnchor_rescuesLargeDriftAfterHoldWindow() {
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(
+                caretRect: CGRect(x: 320, y: 210, width: 2, height: 18),
+                caretQuality: .layoutEstimated
+            ),
+            mode: .inline
+        )
+        // Still inside the post-accept hold: large disagreement must stay held.
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: CGRect(x: 200, y: 210, width: 2, height: 18),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 50
+            )
+        )
+        // After the hold expires, a >24pt disagreement rescues a stuck wrong estimate.
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: CGRect(x: 200, y: 210, width: 2, height: 18),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 350
             )
         )
     }

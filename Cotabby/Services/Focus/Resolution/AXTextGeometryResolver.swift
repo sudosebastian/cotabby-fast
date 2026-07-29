@@ -171,7 +171,8 @@ struct AXTextGeometryResolver {
                 let estimatedX = conservativeEstimatedCaretX(
                     in: cocoaRect,
                     text: text,
-                    selection: selectionInTextValue
+                    selection: selectionInTextValue,
+                    observedCharWidth: nil
                 )
                 let clampedX = min(estimatedX, cocoaRect.maxX)
                 return CaretGeometryResult(
@@ -195,29 +196,40 @@ struct AXTextGeometryResolver {
     /// farther right as more text was accepted, especially in apps whose real font is narrower
     /// than the hard-coded guess or whose prefix spans multiple lines. We now:
     /// 1. Measure only the current line fragment after the last newline.
-    /// 2. Use a system-font width estimate as a fallback proxy for rendered width.
+    /// 2. Prefer a previously observed per-character width from child-run geometry when available
+    ///    (monospace / editor hosts), otherwise a system-font width sized from the field height.
     /// 3. Apply a modest upward bias because this fallback routinely underestimates larger editors
     ///    that only expose `AXFrame`, then keep a loose per-character ceiling as a guardrail.
     private func conservativeEstimatedCaretX(
         in cocoaRect: CGRect,
         text: String,
-        selection: NSRange
+        selection: NSRange,
+        observedCharWidth: CGFloat?
     ) -> CGFloat {
         let nsText = text as NSString
         let safeLocation = min(selection.location, nsText.length)
         let prefix = nsText.substring(to: safeLocation)
         let currentLinePrefix = prefix.components(separatedBy: .newlines).last ?? prefix
         let lineNSString = currentLinePrefix as NSString
+        let characterCount = CGFloat(lineNSString.length)
 
         let estimatedWidthBias: CGFloat = 1.1
+        if let observedCharWidth, observedCharWidth > 0, characterCount > 0 {
+            // Child-run measurements already reflect the host font; prefer them over system font.
+            return cocoaRect.minX + characterCount * observedCharWidth * estimatedWidthBias
+        }
+
+        // Scale the system-font probe to the field's line box so tall omnibox / short toolbar
+        // fields do not all share a hard-coded 15pt assumption.
+        let fontSize = max(11, min(22, cocoaRect.height * 0.65))
         let measuredWidth =
             lineNSString.size(withAttributes: [
-                .font: NSFont.systemFont(ofSize: 15)
+                .font: NSFont.systemFont(ofSize: fontSize)
             ]).width * estimatedWidthBias
-        let perCharacterCeiling: CGFloat = 13.3 * estimatedWidthBias
+        let perCharacterCeiling: CGFloat = (fontSize * 0.9) * estimatedWidthBias
         let estimatedWidth = min(
             measuredWidth,
-            CGFloat(lineNSString.length) * perCharacterCeiling
+            characterCount * perCharacterCeiling
         )
 
         return cocoaRect.minX + estimatedWidth
@@ -385,7 +397,8 @@ struct AXTextGeometryResolver {
         let estimatedX = conservativeEstimatedCaretX(
             in: fallbackFrame,
             text: parentText,
-            selection: parentSelection
+            selection: parentSelection,
+            observedCharWidth: nil
         )
         return CaretGeometryResult(
             rect: CGRect(
