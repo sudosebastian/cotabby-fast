@@ -338,7 +338,8 @@ final class LlamaSuggestionEngine {
             ),
             confidenceFloor: resolvedConfidenceFloor(),
             stopAtArgmaxEOG: resolvedStopAtArgmaxEOG(),
-            maximumCompletionWords: request.completionWordRange.highWords
+            maximumCompletionWords: request.completionWordRange.highWords,
+            allowKVReuse: request.preferLlamaKVExtend
         )
     }
 

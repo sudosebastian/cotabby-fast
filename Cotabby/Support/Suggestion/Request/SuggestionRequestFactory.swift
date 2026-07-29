@@ -142,6 +142,7 @@ enum SuggestionRequestFactory {
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             completionWordRange: wordRange,
+            preferLlamaKVExtend: settings.preferLlamaKVExtend,
             requestID: RequestID.generate()
         )
 

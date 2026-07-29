@@ -111,6 +111,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// gate sees the live value alongside the other "where Tabfast runs" rules.
     let suggestInIntegratedTerminals: Bool
     let selectedEngine: SuggestionEngineKind
+    /// When true (default), Open Source may Extend / trim-reuse KV across keystrokes. When false,
+    /// every suggestion is Fresh. Travels in the snapshot so the llama engine reads the live toggle.
+    let preferLlamaKVExtend: Bool
     let selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, the generation pipeline uses `customWordCountRange` for the length budget and
     /// prompt cue; otherwise it falls back to `selectedWordCountPreset.range`.

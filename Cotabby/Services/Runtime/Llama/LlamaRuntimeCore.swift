@@ -663,7 +663,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             hasLiveSequence: autocompleteSequenceID >= 0,
             storedTokens: autocompletePromptTokens,
             newTokens: promptTokens,
-            fingerprintMatches: autocompleteSamplingFingerprint == fingerprint
+            fingerprintMatches: autocompleteSamplingFingerprint == fingerprint,
+            allowReuse: options.allowKVReuse
         )
 
         switch decision {
@@ -925,6 +926,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let minP: Double
         let repetitionPenalty: Double
         let seed: UInt32?
+        let allowKVReuse: Bool
 
         init(options: LlamaGenerationOptions) {
             maxPredictionTokens = options.maxPredictionTokens
@@ -934,6 +936,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             minP = options.minP
             repetitionPenalty = options.repetitionPenalty
             seed = options.seed
+            allowKVReuse = options.allowKVReuse
         }
     }
 }

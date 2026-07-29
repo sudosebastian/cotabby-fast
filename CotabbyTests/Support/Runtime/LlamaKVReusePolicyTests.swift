@@ -90,4 +90,29 @@ final class LlamaKVReusePolicyTests: XCTestCase {
         )
         XCTAssertEqual(decision, .fresh)
     }
+
+    func test_freshWhenAllowReuseDisabledEvenIfExtendWouldApply() {
+        // User toggle Off (Fresh): force rebuild even when the prompt is a strict SWA extension.
+        let decision = LlamaKVReusePolicy.decide(
+            modelRejectsPartialTrims: true,
+            hasLiveSequence: true,
+            storedTokens: [10, 20, 30],
+            newTokens: [10, 20, 30, 40, 50],
+            fingerprintMatches: true,
+            allowReuse: false
+        )
+        XCTAssertEqual(decision, .fresh)
+    }
+
+    func test_freshWhenAllowReuseDisabledEvenIfTrimReuseWouldApply() {
+        let decision = LlamaKVReusePolicy.decide(
+            modelRejectsPartialTrims: false,
+            hasLiveSequence: true,
+            storedTokens: [1, 2, 3, 4],
+            newTokens: [1, 2, 3, 4, 5],
+            fingerprintMatches: true,
+            allowReuse: false
+        )
+        XCTAssertEqual(decision, .fresh)
+    }
 }

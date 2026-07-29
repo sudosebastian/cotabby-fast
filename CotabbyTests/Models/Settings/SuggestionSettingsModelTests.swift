@@ -193,6 +193,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setPluggedInEngine(.appleIntelligence)
         model.setPluggedInModelFilename("big.gguf")
         model.setPluggedInEndpointModelName("big-endpoint")
+        model.setPreferLlamaKVExtend(false)
 
         model.resetToDefaults()
 
@@ -246,6 +247,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.pluggedInEngine, pristine.pluggedInEngine)
         XCTAssertEqual(model.pluggedInModelFilename, pristine.pluggedInModelFilename)
         XCTAssertEqual(model.pluggedInEndpointModelName, pristine.pluggedInEndpointModelName)
+        XCTAssertEqual(model.preferLlamaKVExtend, pristine.preferLlamaKVExtend)
         // Seeded (no-setter) fields:
         XCTAssertEqual(model.acceptanceKeyCode, pristine.acceptanceKeyCode)
         XCTAssertEqual(model.acceptanceKeyLabel, pristine.acceptanceKeyLabel)

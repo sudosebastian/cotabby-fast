@@ -26,6 +26,9 @@ struct SuggestionEngineSettings: Equatable {
     var pluggedInEngine: SuggestionEngineKind
     var pluggedInModelFilename: String
     var pluggedInEndpointModelName: String
+    /// When true (default), Open Source may Extend / trim-reuse KV across keystrokes. When false,
+    /// every suggestion is Fresh (full prompt re-decode). User-controlled latency vs isolation.
+    var preferLlamaKVExtend: Bool
 }
 
 /// Completion length, timing, streaming, and acceptance behavior.
@@ -198,6 +201,11 @@ extension SuggestionSettingsData {
     var pluggedInEndpointModelName: String {
         get { engine.pluggedInEndpointModelName }
         set { engine.pluggedInEndpointModelName = newValue }
+    }
+
+    var preferLlamaKVExtend: Bool {
+        get { engine.preferLlamaKVExtend }
+        set { engine.preferLlamaKVExtend = newValue }
     }
 
     var selectedWordCountPreset: SuggestionWordCountPreset {

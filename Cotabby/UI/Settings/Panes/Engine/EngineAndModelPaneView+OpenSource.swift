@@ -23,6 +23,17 @@ extension EngineAndModelPaneView {
                 )
             }
             .settingsItem(.modelStatus)
+
+            Toggle(isOn: preferLlamaKVExtendBinding) {
+                SettingsRowLabel(
+                    title: "Extend Context Across Keystrokes",
+                    description: "On (Extend): reuse the model cache while you keep typing in the " +
+                        "same field — lower latency. Off (Fresh): rebuild from a clean prompt every " +
+                        "suggestion — slower, but isolates each request from prior KV state.",
+                    systemImage: "arrow.triangle.branch"
+                )
+            }
+            .settingsItem(.preferLlamaKVExtend)
         }
 
         Section("Models") {

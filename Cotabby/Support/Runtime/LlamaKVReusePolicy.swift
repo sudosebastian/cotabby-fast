@@ -21,14 +21,23 @@ enum LlamaKVReusePolicy {
     }
 
     /// Chooses reuse strategy for one obtain-sequence call.
+    ///
+    /// `allowReuse` is the user toggle: when false, every request is Fresh (destroy + rebuild)
+    /// even if an extend or trim would otherwise be safe. Default true preserves the latency path.
     static func decide(
         modelRejectsPartialTrims: Bool,
         hasLiveSequence: Bool,
         storedTokens: [Int32],
         newTokens: [Int32],
-        fingerprintMatches: Bool
+        fingerprintMatches: Bool,
+        allowReuse: Bool = true
     ) -> Decision {
-        guard hasLiveSequence, fingerprintMatches, !storedTokens.isEmpty, !newTokens.isEmpty else {
+        guard allowReuse,
+              hasLiveSequence,
+              fingerprintMatches,
+              !storedTokens.isEmpty,
+              !newTokens.isEmpty
+        else {
             return .fresh
         }
 

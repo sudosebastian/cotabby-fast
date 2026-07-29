@@ -147,6 +147,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var pluggedInEngine: SuggestionEngineKind
     @Published private(set) var pluggedInModelFilename: String
     @Published private(set) var pluggedInEndpointModelName: String
+    /// When true (default), Open Source may Extend / trim-reuse KV across keystrokes. When false,
+    /// every suggestion rebuilds from Fresh. Exposed so the user can trade latency for isolation.
+    @Published private(set) var preferLlamaKVExtend: Bool
 
     /// Owns the on-disk keys, defaults, migrations, and per-field writes. The facade holds one and
     /// routes every load and save through it.
@@ -262,6 +265,7 @@ final class SuggestionSettingsModel: ObservableObject {
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
         pluggedInEndpointModelName = data.pluggedInEndpointModelName
+        preferLlamaKVExtend = data.preferLlamaKVExtend
         schedulePauseExpirationIfNeeded()
     }
 
@@ -339,6 +343,7 @@ final class SuggestionSettingsModel: ObservableObject {
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
         pluggedInEndpointModelName = data.pluggedInEndpointModelName
+        preferLlamaKVExtend = data.preferLlamaKVExtend
         do {
             try endpointCredentialStore.deleteAPIKey()
             endpointCredentialRevision &+= 1
@@ -373,7 +378,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 batteryEndpointModelName: batteryEndpointModelName,
                 pluggedInEngine: pluggedInEngine,
                 pluggedInModelFilename: pluggedInModelFilename,
-                pluggedInEndpointModelName: pluggedInEndpointModelName
+                pluggedInEndpointModelName: pluggedInEndpointModelName,
+                preferLlamaKVExtend: preferLlamaKVExtend
             ),
             completion: SuggestionCompletionSettings(
                 selectedWordCountPreset: selectedWordCountPreset,
@@ -451,6 +457,7 @@ final class SuggestionSettingsModel: ObservableObject {
             disabledAppBundleIdentifiers: Set(settings.general.disabledAppRules.map(\.bundleIdentifier)),
             suggestInIntegratedTerminals: settings.general.suggestInIntegratedTerminals,
             selectedEngine: settings.engine.selectedEngine,
+            preferLlamaKVExtend: settings.engine.preferLlamaKVExtend,
             selectedWordCountPreset: settings.completion.selectedWordCountPreset,
             isUsingCustomWordCountRange: settings.completion.isUsingCustomWordCountRange,
             customWordCountRange: SuggestionWordRange.clamped(
@@ -879,6 +886,15 @@ final class SuggestionSettingsModel: ObservableObject {
         streamSuggestionsWhileGenerating = enabled
         store.saveStreamSuggestionsWhileGenerating(enabled)
     }
+
+    func setPreferLlamaKVExtend(_ enabled: Bool) {
+        guard preferLlamaKVExtend != enabled else {
+            return
+        }
+        preferLlamaKVExtend = enabled
+        store.savePreferLlamaKVExtend(enabled)
+    }
+
 
     func setFadeInSuggestions(_ enabled: Bool) {
         guard fadeInSuggestions != enabled else {
@@ -1345,7 +1361,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             Publishers.CombineLatest4(
                 Publishers.CombineLatest($isGloballyEnabled, $pauseState),
                 $disabledAppRules,
-                $selectedEngine,
+                Publishers.CombineLatest($selectedEngine, $preferLlamaKVExtend),
                 $selectedWordCountPreset
             ),
             // Group the typo settings into one inner publisher so the presentation slot stays at
@@ -1405,8 +1421,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
             .map { primaryTuple, granularity, contextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
-                let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
+                let (globalState, disabledAppRules, enginePair, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
+                let (engine, preferLlamaKVExtend) = enginePair
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
@@ -1422,6 +1439,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                     suggestInIntegratedTerminals: suggestInIntegratedTerminals,
                     selectedEngine: engine,
+                    preferLlamaKVExtend: preferLlamaKVExtend,
                     selectedWordCountPreset: wordCountPreset,
                     isUsingCustomWordCountRange: isCustomActive,
                     customWordCountRange: SuggestionWordRange.clamped(low: customLow, high: customHigh),

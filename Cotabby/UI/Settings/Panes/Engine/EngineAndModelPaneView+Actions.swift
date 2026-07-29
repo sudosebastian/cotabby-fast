@@ -46,6 +46,15 @@ extension EngineAndModelPaneView {
         )
     }
 
+    /// User control for Open Source KV Extend vs Fresh. On keeps the latency path; off forces
+    /// a clean prompt rebuild every suggestion.
+    var preferLlamaKVExtendBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.preferLlamaKVExtend },
+            set: { suggestionSettings.setPreferLlamaKVExtend($0) }
+        )
+    }
+
     var selectedModelBinding: Binding<String> {
         Binding(
             get: {

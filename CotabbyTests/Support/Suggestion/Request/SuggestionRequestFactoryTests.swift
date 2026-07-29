@@ -366,6 +366,22 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertEqual(result.request.completionWordRange, SuggestionWordCountPreset.fourToSeven.range)
     }
 
+    func test_buildRequest_copiesPreferLlamaKVExtendOntoRequest() {
+        let enabled = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+            settings: CotabbyTestFixtures.settingsSnapshot(preferLlamaKVExtend: true),
+            configuration: .standard
+        )
+        let disabled = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+            settings: CotabbyTestFixtures.settingsSnapshot(preferLlamaKVExtend: false),
+            configuration: .standard
+        )
+
+        XCTAssertTrue(enabled.request.preferLlamaKVExtend)
+        XCTAssertFalse(disabled.request.preferLlamaKVExtend)
+    }
+
     func test_buildRequest_appliesCompactLlamaBudgetOverrideOnlyForOpenSource() {
         let context = CotabbyTestFixtures.focusedInputContext(
             precedingText: String(repeating: "word ", count: 200)

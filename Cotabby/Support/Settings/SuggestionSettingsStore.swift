@@ -174,6 +174,9 @@ struct SuggestionSettingsStore {
     private static let pluggedInEngineDefaultsKey = "cotabbyPluggedInEngine"
     private static let pluggedInModelFilenameDefaultsKey = "cotabbyPluggedInModelFilename"
     private static let pluggedInEndpointModelNameDefaultsKey = "cotabbyPluggedInEndpointModelName"
+    /// Defaults to true: Open Source Extend/trim-reuse across keystrokes. Off forces Fresh rebuilds.
+    private static let preferLlamaKVExtendDefaultsKey = "cotabbyPreferLlamaKVExtend"
+    static let defaultPreferLlamaKVExtend = true
 
     /// Every persisted-preference key this store owns, in one place so `resetToDefaults` clears the
     /// full set. App state that is deliberately *not* a preference lives under other keys and is
@@ -249,7 +252,8 @@ struct SuggestionSettingsStore {
         batteryEndpointModelNameDefaultsKey,
         pluggedInEngineDefaultsKey,
         pluggedInModelFilenameDefaultsKey,
-        pluggedInEndpointModelNameDefaultsKey
+        pluggedInEndpointModelNameDefaultsKey,
+        preferLlamaKVExtendDefaultsKey
     ]
 
     // MARK: - Load
@@ -541,6 +545,10 @@ struct SuggestionSettingsStore {
         let resolvedPluggedInModelFilename = userDefaults.string(forKey: Self.pluggedInModelFilenameDefaultsKey) ?? ""
         let resolvedPluggedInEndpointModelName = userDefaults
             .string(forKey: Self.pluggedInEndpointModelNameDefaultsKey) ?? ""
+        // Defaults to true so existing installs keep the Extend latency path; Fresh is opt-in.
+        let resolvedPreferLlamaKVExtend =
+            userDefaults.object(forKey: Self.preferLlamaKVExtendDefaultsKey) as? Bool
+            ?? Self.defaultPreferLlamaKVExtend
 
         let data = SuggestionSettingsData(
             general: SuggestionGeneralSettings(
@@ -561,7 +569,8 @@ struct SuggestionSettingsStore {
                 batteryEndpointModelName: resolvedBatteryEndpointModelName,
                 pluggedInEngine: resolvedPluggedInEngine,
                 pluggedInModelFilename: resolvedPluggedInModelFilename,
-                pluggedInEndpointModelName: resolvedPluggedInEndpointModelName
+                pluggedInEndpointModelName: resolvedPluggedInEndpointModelName,
+                preferLlamaKVExtend: resolvedPreferLlamaKVExtend
             ),
             completion: SuggestionCompletionSettings(
                 selectedWordCountPreset: resolvedWordCountPreset,
@@ -700,6 +709,7 @@ struct SuggestionSettingsStore {
         savePluggedInEngine(data.pluggedInEngine)
         savePluggedInModelFilename(data.pluggedInModelFilename)
         savePluggedInEndpointModelName(data.pluggedInEndpointModelName)
+        savePreferLlamaKVExtend(data.preferLlamaKVExtend)
 
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
         // users who picked one in an older build get the default cat icon back automatically.
@@ -823,6 +833,10 @@ struct SuggestionSettingsStore {
 
     func savePluggedInEndpointModelName(_ modelName: String) {
         userDefaults.set(modelName, forKey: Self.pluggedInEndpointModelNameDefaultsKey)
+    }
+
+    func savePreferLlamaKVExtend(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.preferLlamaKVExtendDefaultsKey)
     }
 
     func saveSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {

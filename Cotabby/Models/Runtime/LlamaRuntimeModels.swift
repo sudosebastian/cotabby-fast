@@ -237,6 +237,11 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// preset is honored without paying for tokens the normalizer would trim anyway. `nil`
     /// disables the gate (tests that only exercise token-budget / sentence stops).
     var maximumCompletionWords: Int? = nil
+
+    /// When true (default), the runtime may Extend or trim-reuse a live KV sequence across
+    /// keystrokes. When false, every request is Fresh — destroy and rebuild — matching the user's
+    /// Settings toggle for extend-vs-fresh control.
+    var allowKVReuse: Bool = true
 }
 
 /// One generation's text plus the confidence signals the caller needs for suppression accounting.

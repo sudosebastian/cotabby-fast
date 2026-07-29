@@ -386,6 +386,31 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.ghostTextOpacity, SuggestionSettingsStore.minimumGhostTextOpacity, accuracy: 0.0001)
     }
 
+    // MARK: - Open Source KV Extend vs Fresh
+
+    func test_load_defaultsPreferLlamaKVExtendWhenUnset() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(data.preferLlamaKVExtend)
+        XCTAssertEqual(
+            data.preferLlamaKVExtend,
+            SuggestionSettingsStore.defaultPreferLlamaKVExtend
+        )
+    }
+
+    func test_load_andSave_persistPreferLlamaKVExtendOff() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.savePreferLlamaKVExtend(false)
+
+        let data = store.load(configuration: .standard)
+        XCTAssertFalse(data.preferLlamaKVExtend)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyPreferLlamaKVExtend") as? Bool, false)
+    }
+
     // MARK: - Ghost text size multiplier
 
     func test_load_defaultsGhostTextSizeMultiplierWhenUnset() async {
@@ -710,6 +735,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.savePluggedInEngine(.appleIntelligence)
         store.savePluggedInModelFilename("big.gguf")
         store.savePluggedInEndpointModelName("big-endpoint")
+        store.savePreferLlamaKVExtend(false)
         defaults.set("Spanish", forKey: "cotabbyResponseLanguage")
 
         // Sanity: the dirty values really landed, so the assertions below aren't vacuous.

@@ -58,6 +58,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case engine
     case appleIntelligenceAvailability
     case modelStatus
+    case preferLlamaKVExtend
     case selectedModel
     case powerBasedModelSwitching
     case batteryModel
@@ -140,6 +141,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .engine: return "Engine"
         case .appleIntelligenceAvailability: return "Apple Intelligence Availability"
         case .modelStatus: return "Model Status"
+        case .preferLlamaKVExtend: return "Extend Context Across Keystrokes"
         case .selectedModel: return "Selected Model"
         case .powerBasedModelSwitching: return "Switch Based on Power Source"
         case .batteryModel: return "On Battery"
@@ -217,6 +219,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .engine: return "cpu"
         case .appleIntelligenceAvailability: return "apple.logo"
         case .modelStatus: return "info.circle"
+        case .preferLlamaKVExtend: return "arrow.triangle.branch"
         case .selectedModel: return "shippingbox"
         case .powerBasedModelSwitching: return "battery.100.bolt"
         case .batteryModel: return "battery.25"
@@ -268,8 +271,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .writing
         case .extendedContext, .contextLivePreview, .writingMemory, .ambientScreenIndex:
             return .context
-        case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
-             .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
+        case .engine, .appleIntelligenceAvailability, .modelStatus, .preferLlamaKVExtend,
+             .selectedModel, .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
              .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
             return .engineAndModel
@@ -331,6 +334,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
         case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
         case .modelStatus: return "Whether the local model is loaded and ready."
+        case .preferLlamaKVExtend: return "Reuse the Open Source cache while typing, or rebuild Fresh each time."
         case .selectedModel: return "Which downloaded model generates suggestions."
         case .powerBasedModelSwitching: return "Use a different engine or model by power source."
         case .batteryModel: return "Engine and model used while on battery."
@@ -496,6 +500,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .modelStatus:
             return ["status", "loaded", "ready", "runtime", "running", "health",
                     "model loaded", "loading"]
+        case .preferLlamaKVExtend:
+            return ["extend", "fresh", "kv", "cache", "reuse", "keystroke", "latency",
+                    "context", "swa", "prefix", "rebuild", "prompt cache", "kv cache"]
         case .selectedModel:
             return ["model", "gguf", "pick", "selected", "active model", "choose model",
                     "current model", "default model"]

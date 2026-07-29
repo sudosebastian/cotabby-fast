@@ -38,6 +38,8 @@ final class SettingsIndexTests: XCTestCase {
             ("vscode", .suggestInIntegratedTerminals),
             ("typo", .automaticallyFixTypos),
             ("model status", .modelStatus),
+            ("extend context", .preferLlamaKVExtend),
+            ("kv cache", .preferLlamaKVExtend),
             ("battery", .batteryModel),
             ("plugged", .pluggedInModel)
         ]
