@@ -5,6 +5,9 @@ import Foundation
 /// small: the ambient screen index and writing memory can be large, but only the top-scoring
 /// snippets reach the model. That protects llama KV reuse and the shared prompt token budget.
 ///
+/// Ambient lines may carry optional sentence embeddings from `TextSemanticEmbedder`; scoring still
+/// collapses to these plain text snippets before anything reaches a generative model.
+///
 /// These are plain Sendable values so request construction stays pure once retrieval has finished
 /// on the main actor.
 

@@ -4,11 +4,13 @@ import Logging
 
 /// File overview:
 /// Background multi-display OCR indexer. Captures every attached display with Vision `.fast`,
-/// hygiene-filters the lines, and publishes a `ScreenTextIndexSnapshot` for `ContextualRetriever`.
+/// hygiene-filters the lines, attaches tiny sentence embeddings via `TextSemanticEmbedder`, and
+/// publishes a `ScreenTextIndexSnapshot` for `ContextualRetriever`.
 ///
 /// Critical path rule: suggestion generation never awaits this work. It reads `snapshot` (whatever
 /// is already warm). Refresh is throttled and cancelled when Screen Recording is revoked or the
-/// user disables ambient indexing / Fast Mode.
+/// user disables ambient indexing / Fast Mode. Embedding fill runs in a detached utility task so
+/// a ~1s batch encode cannot hitch the main actor after OCR returns.
 @MainActor
 final class AmbientScreenIndexer: ObservableObject {
     @Published private(set) var snapshot: ScreenTextIndexSnapshot = .empty
@@ -16,6 +18,7 @@ final class AmbientScreenIndexer: ObservableObject {
 
     private let displayCapture: DisplayScreenshotService
     private let textExtractor: ScreenTextExtractor
+    private let embedder: TextSemanticEmbedder
     private let maxIndexedLines: Int
     private let minimumRefreshInterval: TimeInterval
 
@@ -29,11 +32,13 @@ final class AmbientScreenIndexer: ObservableObject {
 
     init(
         displayCapture: DisplayScreenshotService = DisplayScreenshotService(),
+        embedder: TextSemanticEmbedder = .shared,
         maxImageDimension: Int = 900,
         maxIndexedLines: Int = 300,
         minimumRefreshInterval: TimeInterval = 3.0
     ) {
         self.displayCapture = displayCapture
+        self.embedder = embedder
         self.textExtractor = ScreenTextExtractor(
             maxImageDimension: maxImageDimension,
             maxRecognizedCharacters: 8_000,
@@ -136,9 +141,24 @@ final class AmbientScreenIndexer: ObservableObject {
                 allLines = Array(allLines.prefix(maxIndexedLines))
             }
 
-            snapshot = ScreenTextIndexSnapshot(lines: allLines, updatedAt: capturedAt)
+            guard !Task.isCancelled else { return }
+
+            // Sentence embeddings are the slow part of indexing (~1s for a few hundred lines). Keep
+            // them off the main actor; the suggestion path reads the previous snapshot until this
+            // detached fill publishes a replacement.
+            let embedder = self.embedder
+            let embeddedLines = await Task.detached(priority: .utility) {
+                embedder.embeddingFilled(lines: allLines)
+            }.value
+
+            guard !Task.isCancelled else { return }
+
+            let embeddedCount = embeddedLines.reduce(0) { partial, line in
+                partial + (line.embedding == nil ? 0 : 1)
+            }
+            snapshot = ScreenTextIndexSnapshot(lines: embeddedLines, updatedAt: capturedAt)
             CotabbyLogger.app.debug(
-                "Ambient screen refresh ready displays=\(captures.count) lines=\(allLines.count)"
+                "Ambient screen refresh ready displays=\(captures.count) lines=\(embeddedLines.count) embedded=\(embeddedCount)"
             )
         } catch {
             CotabbyLogger.app.debug("Ambient screen refresh failed reason=\(error.localizedDescription)")

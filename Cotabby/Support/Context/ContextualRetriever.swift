@@ -7,6 +7,10 @@ import Foundation
 ///
 /// Design invariant: never return more text than the prompt budgets can absorb. The LLM does not
 /// "look up" a dictionary — it conditions on text — so retrieval quality matters more than volume.
+///
+/// When `queryEmbedding` is present and ambient lines carry unit vectors from
+/// `TextSemanticEmbedder`, screen ranking blends cosine similarity on top of lexical overlap so
+/// related-but-token-disjoint OCR lines can still surface. Embedding work itself never happens here.
 
 enum ContextualRetriever {
     /// Soft cap for the screen section before the renderer’s tighter per-section max (280).
@@ -18,13 +22,16 @@ enum ContextualRetriever {
 
     /// Assembles prompt-ready context. `fieldOCR` is the existing once-per-field excerpt; ambient
     /// lines come from the background multi-display index; memory from Tab accepts.
+    /// `queryEmbedding` is an optional unit vector for the caret prefix tip; when nil, ranking
+    /// stays purely lexical (the pre-embedder behavior).
     static func retrieve(
         prefixText: String,
         fieldOCR: String?,
         ambientLines: [ScreenTextIndexLine],
         memory: WritingMemorySnapshot,
         recentFocus: [RecentFocusEntry],
-        currentBundleIdentifier: String?
+        currentBundleIdentifier: String?,
+        queryEmbedding: [Float]? = nil
     ) -> RetrievedPromptContext {
         let prefixTokens = Set(WritingMemoryLearner.tokenize(prefixText).map { $0.lowercased() })
 
@@ -32,7 +39,8 @@ enum ContextualRetriever {
             prefixTokens: prefixTokens,
             fieldOCR: fieldOCR,
             ambientLines: ambientLines,
-            recentFocus: recentFocus
+            recentFocus: recentFocus,
+            queryEmbedding: queryEmbedding
         )
 
         let glossary = rankGlossary(
@@ -56,7 +64,8 @@ enum ContextualRetriever {
         prefixTokens: Set<String>,
         fieldOCR: String?,
         ambientLines: [ScreenTextIndexLine],
-        recentFocus: [RecentFocusEntry]
+        recentFocus: [RecentFocusEntry],
+        queryEmbedding: [Float]?
     ) -> String? {
         var scored: [RetrievedContextSnippet] = []
         let recentTitles = recentFocus.compactMap(\.windowTitle)
@@ -89,6 +98,12 @@ enum ContextualRetriever {
             // Recency of capture: prefer fresher ambient lines slightly.
             let age = Date().timeIntervalSince(line.capturedAt)
             score += max(0, 0.3 - age / 60.0)
+            // Semantic boost: related lines without shared tokens (schedule ↔ calendar).
+            if let queryEmbedding, let lineEmbedding = line.embedding {
+                let cosine = TextSemanticEmbedder.cosineSimilarity(queryEmbedding, lineEmbedding)
+                let excess = max(0, Double(cosine - TextSemanticEmbedder.semanticFloor))
+                score += excess * TextSemanticEmbedder.semanticWeight
+            }
             scored.append(
                 RetrievedContextSnippet(text: text, source: .ambientScreen, score: score)
             )
