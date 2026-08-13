@@ -463,21 +463,24 @@ extension SuggestionCoordinator {
 
     // MARK: - Accept-tap arming
 
-    /// Installs or defers the system-wide accept `defaultTap` for a newly visible overlay.
+    /// Defers the system-wide accept `defaultTap` for a newly visible overlay.
     ///
-    /// While tokens are still streaming (`state == .generating`), keep the tap off and only arm
-    /// after `streamAcceptArmIdleMilliseconds` of quiet. A `defaultTap` holds every keyDown until
-    /// its MainActor callback returns; pairing that with streamed overlay updates + AX work was
-    /// freezing or dropping typed characters without Tab. Once the suggestion is `.ready` (or the
-    /// stream pauses), arm immediately so Tab can still accept.
+    /// Never arm synchronously on present: overlay layout + AX often share MainActor with the next
+    /// keyDown, and even a dedicated-runloop tap still has to hop for Tab. Keep the tap off and
+    /// only arm after `streamAcceptArmIdleMilliseconds` of quiet (stream idle *or* typing idle).
     func syncAcceptInterceptionForVisibleOverlay() {
-        switch state {
-        case .generating:
-            inputMonitor.setAcceptInterceptionActive(false)
+        inputMonitor.setAcceptInterceptionActive(false)
+        scheduleDeferredAcceptInterceptionArm()
+    }
+
+    /// Called on every typed / shortcut mutation so continuous typing never keeps the accept tap
+    /// armed. Re-arms only after the idle window if the ghost is still visible.
+    func deferAcceptInterceptionAfterTypingActivity() {
+        inputMonitor.setAcceptInterceptionActive(false)
+        if overlayState.isVisible {
             scheduleDeferredAcceptInterceptionArm()
-        default:
+        } else {
             cancelDeferredAcceptInterceptionArm()
-            inputMonitor.setAcceptInterceptionActive(true)
         }
     }
 
@@ -485,8 +488,9 @@ extension SuggestionCoordinator {
         cancelDeferredAcceptInterceptionArm()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            // Still only arm while a ghost is up. If generation finished into `.ready`, the ready
-            // present path already armed immediately; if the overlay hid, stay disarmed.
+            // Still only arm while a ghost is up. If the overlay hid during the idle window, stay
+            // disarmed. Ready vs generating no longer matters: both present ghosts the user may
+            // still be typing through.
             guard self.overlayState.isVisible else { return }
             self.inputMonitor.setAcceptInterceptionActive(true)
         }
