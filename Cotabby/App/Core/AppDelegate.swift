@@ -109,6 +109,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         if let focusDebugOverlayController {
+            // Seed + keep the overlay visibility in sync with the Settings toggle. The controller
+            // only exists under `-cotabby-debug`; the toggle itself is also hidden otherwise.
+            focusDebugOverlayController.isVisible = suggestionSettings.showFocusDebugOverlays
+            suggestionSettings.$showFocusDebugOverlays
+                .removeDuplicates()
+                .sink { [weak focusDebugOverlayController] show in
+                    focusDebugOverlayController?.isVisible = show
+                }
+                .store(in: &cancellables)
+
             focusModel.$latestPollEvent
                 .compactMap { $0 }
                 .sink { [weak focusDebugOverlayController] pollEvent in

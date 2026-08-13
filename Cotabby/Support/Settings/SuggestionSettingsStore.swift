@@ -100,6 +100,7 @@ struct SuggestionSettingsStore {
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
+    private static let showFocusDebugOverlaysDefaultsKey = "cotabbyShowFocusDebugOverlays"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let ghostTextSizeMultiplierDefaultsKey = "cotabbyGhostTextSizeMultiplier"
@@ -190,6 +191,7 @@ struct SuggestionSettingsStore {
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
         showAcceptanceHintDefaultsKey,
+        showFocusDebugOverlaysDefaultsKey,
         customSuggestionTextColorHexDefaultsKey,
         ghostTextOpacityDefaultsKey,
         ghostTextSizeMultiplierDefaultsKey,
@@ -275,6 +277,10 @@ struct SuggestionSettingsStore {
             userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
         }
         let resolvedShowAcceptanceHint = userDefaults.object(forKey: Self.showAcceptanceHintDefaultsKey) as? Bool ?? true
+        // Off by default: `-cotabby-debug` still enables logs and the controller, but the on-screen
+        // caret/frame/status overlays stay quiet until the Performance pane toggle is flipped.
+        let resolvedShowFocusDebugOverlays =
+            userDefaults.object(forKey: Self.showFocusDebugOverlaysDefaultsKey) as? Bool ?? false
         // Defaults to false so ghost text stays out of terminals out of the box, matching how
         // standalone terminal apps are already skipped. Existing installs (no key) get the same.
         let resolvedSuggestInIntegratedTerminals =
@@ -603,7 +609,8 @@ struct SuggestionSettingsStore {
                 isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
                 mirrorPreference: resolvedMirrorPreference,
                 fadeInSuggestions: resolvedFadeInSuggestions,
-                fadeInDurationSeconds: resolvedFadeInDurationSeconds
+                fadeInDurationSeconds: resolvedFadeInDurationSeconds,
+                showFocusDebugOverlays: resolvedShowFocusDebugOverlays
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
@@ -638,6 +645,7 @@ struct SuggestionSettingsStore {
         saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
         saveShowIndicator(data.showIndicator)
         saveShowAcceptanceHint(data.showAcceptanceHint)
+        saveShowFocusDebugOverlays(data.showFocusDebugOverlays)
         saveCustomSuggestionTextColorHex(data.customSuggestionTextColorHex)
         saveGhostTextOpacity(data.ghostTextOpacity)
         saveGhostTextSizeMultiplier(data.ghostTextSizeMultiplier)
@@ -763,6 +771,10 @@ struct SuggestionSettingsStore {
 
     func saveShowAcceptanceHint(_ show: Bool) {
         userDefaults.set(show, forKey: Self.showAcceptanceHintDefaultsKey)
+    }
+
+    func saveShowFocusDebugOverlays(_ show: Bool) {
+        userDefaults.set(show, forKey: Self.showFocusDebugOverlaysDefaultsKey)
     }
 
     func saveCustomSuggestionTextColorHex(_ hex: String?) {

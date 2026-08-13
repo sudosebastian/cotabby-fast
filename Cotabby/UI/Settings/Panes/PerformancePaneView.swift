@@ -31,6 +31,20 @@ struct PerformancePaneView: View {
                     )
                 }
                 .settingsItem(.performanceTracking)
+
+                // Only meaningful when Dev/debug was launched with `-cotabby-debug`. Release builds
+                // never create the overlay controller, so hiding the row avoids a dead toggle.
+                if CotabbyDebugOptions.isEnabled {
+                    Toggle(isOn: focusDebugOverlaysBinding) {
+                        SettingsRowLabel(
+                            title: "Show Focus Debug Overlays",
+                            description: "Draw the caret badge, field outline, and bottom status panel. " +
+                                "JSONL / Console debug logging stays on regardless of this toggle.",
+                            systemImage: "scope"
+                        )
+                    }
+                    .settingsItem(.focusDebugOverlays)
+                }
             }
 
             Section {
@@ -313,6 +327,13 @@ struct PerformancePaneView: View {
         Binding(
             get: { suggestionSettings.isPerformanceTrackingEnabled },
             set: { suggestionSettings.setPerformanceTrackingEnabled($0) }
+        )
+    }
+
+    private var focusDebugOverlaysBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showFocusDebugOverlays },
+            set: { suggestionSettings.setShowFocusDebugOverlays($0) }
         )
     }
 

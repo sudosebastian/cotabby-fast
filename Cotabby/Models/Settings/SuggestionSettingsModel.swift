@@ -40,6 +40,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var showIndicator: Bool
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
+    /// On-screen focus debug overlays (caret badge, field frame, bottom status). Only consulted when
+    /// the process was launched with `-cotabby-debug`.
+    @Published private(set) var showFocusDebugOverlays: Bool
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     /// Whether Cotabby should suggest inside integrated terminals (VS Code / Cursor xterm.js
     /// surfaces). Off by default: a terminal's own completion/history conflicts with ghost text and
@@ -203,6 +206,7 @@ final class SuggestionSettingsModel: ObservableObject {
         pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
+        showFocusDebugOverlays = data.showFocusDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
@@ -280,6 +284,7 @@ final class SuggestionSettingsModel: ObservableObject {
         pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
+        showFocusDebugOverlays = data.showFocusDebugOverlays
         disabledAppRules = data.disabledAppRules
         suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
@@ -415,7 +420,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 isMenuBarWordCountVisible: isMenuBarWordCountVisible,
                 mirrorPreference: mirrorPreference,
                 fadeInSuggestions: fadeInSuggestions,
-                fadeInDurationSeconds: fadeInDurationSeconds
+                fadeInDurationSeconds: fadeInDurationSeconds,
+                showFocusDebugOverlays: showFocusDebugOverlays
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: isEmojiPickerEnabled,
@@ -1072,6 +1078,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         showIndicator = show
         store.saveShowIndicator(show)
+    }
+
+    func setShowFocusDebugOverlays(_ show: Bool) {
+        guard showFocusDebugOverlays != show else {
+            return
+        }
+
+        showFocusDebugOverlays = show
+        store.saveShowFocusDebugOverlays(show)
     }
 
     func setShowAcceptanceHint(_ show: Bool) {
