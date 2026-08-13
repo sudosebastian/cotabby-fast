@@ -49,7 +49,8 @@ nonisolated enum VisualContextStatus: Equatable, Sendable {
 
 /// The final visual-context excerpt eventually injected into the completion prompt.
 /// This is bounded, normalized OCR text. The visual-context path intentionally does not run a
-/// second model summarizer because that would add latency and could invent context.
+/// second generative summarizer because that would add latency and could invent context. Ambient
+/// retrieval may use a tiny non-generative sentence embedder for ranking only.
 nonisolated struct VisualContextExcerpt: Equatable, Sendable {
     let text: String
 }

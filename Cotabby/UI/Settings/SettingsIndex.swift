@@ -297,7 +297,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeClipboardContext: return "Let suggestions reference what you last copied."
         case .includeAppContext: return "Tell the model which app and window you are typing in."
         case .writingMemory: return "Learn rare terms and phrases from Tab accepts."
-        case .ambientScreenIndex: return "Background OCR of all displays for smarter screen context."
+        case .ambientScreenIndex: return "Background OCR + tiny embeddings across displays for smarter screen context."
         case .allowMultiLine: return "Allow continuations that span more than one line."
         case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."

@@ -309,6 +309,8 @@ final class SuggestionCoordinator: ObservableObject {
     }
 
     /// Builds retrieved screen + glossary context for the next request without awaiting OCR.
+    /// When the ambient index is warm, embeds only the caret-prefix tip (cached) so
+    /// `ContextualRetriever` can blend semantic similarity with lexical overlap.
     func retrievedPromptContext(
         for context: FocusedInputContext,
         prefixText: String
@@ -323,13 +325,19 @@ final class SuggestionCoordinator: ObservableObject {
             settingsSnapshot.isAmbientScreenIndexEnabled && !settingsSnapshot.isFastModeEnabled
             ? ambientScreenIndexer.snapshot.lines
             : []
+        // Query embedding is cheap (~ms) and skipped when there is nothing semantic to rank against.
+        let queryEmbedding: [Float]? =
+            ambientLines.contains(where: { $0.embedding != nil })
+            ? TextSemanticEmbedder.shared.embedQuery(from: prefixText)
+            : nil
         return ContextualRetriever.retrieve(
             prefixText: prefixText,
             fieldOCR: fieldOCR,
             ambientLines: ambientLines,
             memory: memory,
             recentFocus: recentFocusRing.snapshot(),
-            currentBundleIdentifier: context.bundleIdentifier
+            currentBundleIdentifier: context.bundleIdentifier,
+            queryEmbedding: queryEmbedding
         )
     }
 

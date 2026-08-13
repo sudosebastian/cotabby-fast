@@ -103,8 +103,9 @@ struct ContextPaneView: View {
                 SettingsRowLabel(
                     title: "Index all displays",
                     description: "In the background, OCR every attached display with Vision’s fast " +
-                        "mode and retrieve relevant lines for suggestions. Requires Screen Recording; " +
-                        "skipped in Fast Mode. Does not block typing.",
+                        "mode, embed the lines with a tiny on-device sentence model, and retrieve the " +
+                        "most relevant snippets for suggestions. Requires Screen Recording; skipped " +
+                        "in Fast Mode. Does not block typing.",
                     systemImage: "rectangle.on.rectangle"
                 )
             }
