@@ -461,6 +461,47 @@ extension SuggestionCoordinator {
 
     // MARK: - Post-Exhaustion Acceptance Window
 
+    // MARK: - Accept-tap arming
+
+    /// Installs or defers the system-wide accept `defaultTap` for a newly visible overlay.
+    ///
+    /// While tokens are still streaming (`state == .generating`), keep the tap off and only arm
+    /// after `streamAcceptArmIdleMilliseconds` of quiet. A `defaultTap` holds every keyDown until
+    /// its MainActor callback returns; pairing that with streamed overlay updates + AX work was
+    /// freezing or dropping typed characters without Tab. Once the suggestion is `.ready` (or the
+    /// stream pauses), arm immediately so Tab can still accept.
+    func syncAcceptInterceptionForVisibleOverlay() {
+        switch state {
+        case .generating:
+            inputMonitor.setAcceptInterceptionActive(false)
+            scheduleDeferredAcceptInterceptionArm()
+        default:
+            cancelDeferredAcceptInterceptionArm()
+            inputMonitor.setAcceptInterceptionActive(true)
+        }
+    }
+
+    func scheduleDeferredAcceptInterceptionArm() {
+        cancelDeferredAcceptInterceptionArm()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            // Still only arm while a ghost is up. If generation finished into `.ready`, the ready
+            // present path already armed immediately; if the overlay hid, stay disarmed.
+            guard self.overlayState.isVisible else { return }
+            self.inputMonitor.setAcceptInterceptionActive(true)
+        }
+        acceptInterceptionArmWorkItem = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(Self.streamAcceptArmIdleMilliseconds),
+            execute: work
+        )
+    }
+
+    func cancelDeferredAcceptInterceptionArm() {
+        acceptInterceptionArmWorkItem?.cancel()
+        acceptInterceptionArmWorkItem = nil
+    }
+
     /// How long Cotabby keeps owning Tab after a final-chunk accept while it waits for the
     /// continuation to regenerate. This is only a backstop: the window normally ends much sooner —
     /// when the next suggestion shows (overlay visible) or any teardown hides the overlay. It exists
@@ -484,6 +525,7 @@ extension SuggestionCoordinator {
     /// A token-keyed backstop guarantees the window can never trap Tab.
     func armPostExhaustionAcceptance() {
         let generation = postExhaustionAcceptanceState.arm()
+        cancelDeferredAcceptInterceptionArm()
         inputMonitor.setAcceptInterceptionActive(true)
         DispatchQueue.main.asyncAfter(
             deadline: .now() + Self.postExhaustionAcceptanceWindowSeconds

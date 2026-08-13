@@ -519,4 +519,45 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         XCTAssertEqual(rig.engine.requests.count, requestsBefore, "Must not kick off a duplicate generation")
         XCTAssertNotEqual(rig.coordinator.state, .debouncing)
     }
+
+    // MARK: - Accept-tap arming during streamed ghosts
+
+    func test_overlayWhileGenerating_doesNotArmAcceptTapImmediately() {
+        // Streaming presents ghosts under `.generating`. Arming the system-wide accept defaultTap
+        // for that whole decode held every keyDown on MainActor and ate typed characters.
+        let rig = retained(makeCoordinatorRig())
+        rig.coordinator.state = .generating
+        let armedBefore = rig.inputMonitor.acceptInterceptionRequests.filter { $0 }.count
+
+        rig.overlayController.showSuggestion(" wor", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests.last, false)
+        XCTAssertEqual(
+            rig.inputMonitor.acceptInterceptionRequests.filter { $0 }.count,
+            armedBefore,
+            "A streamed ghost must not install the accept tap while still generating"
+        )
+    }
+
+    func test_overlayWhenReady_armsAcceptTapImmediately() {
+        let rig = retained(makeCoordinatorRig())
+        rig.coordinator.state = .ready(text: " world", latency: 0.05)
+
+        rig.overlayController.showSuggestion(" world", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests.last, true)
+    }
+
+    func test_streamIdle_eventuallyArmsAcceptTapWhileStillGenerating() async {
+        let rig = retained(makeCoordinatorRig())
+        rig.coordinator.state = .generating
+        rig.overlayController.showSuggestion(" wor", geometry: CotabbyTestFixtures.overlayGeometry())
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests.last, false)
+
+        await waitUntil("Deferred accept-tap arm never fired after stream idle") {
+            rig.inputMonitor.acceptInterceptionRequests.last == true
+        }
+        XCTAssertTrue(rig.coordinator.overlayState.isVisible)
+        XCTAssertEqual(rig.coordinator.state, .generating)
+    }
 }

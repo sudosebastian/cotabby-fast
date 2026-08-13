@@ -154,6 +154,15 @@ final class SuggestionCoordinator: ObservableObject {
     /// coordinator continues to own the timer and input-monitor effects around these transitions.
     var postExhaustionAcceptanceState = PostExhaustionAcceptanceState()
 
+    /// Pending idle-arm for the accept tap while a streamed ghost is visible under `.generating`.
+    /// Cancelled on every new partial, on hide, and when the suggestion reaches `.ready`.
+    var acceptInterceptionArmWorkItem: DispatchWorkItem?
+
+    /// How long streaming must go quiet before we install the system-wide accept `defaultTap`.
+    /// During an active stream, holding that tap gates every keyDown on MainActor and was freezing
+    /// / dropping typed characters. A short idle still allows early Tab once tokens pause.
+    static let streamAcceptArmIdleMilliseconds = 120
+
     init(
         permissionManager: any SuggestionPermissionProviding,
         focusModel: any SuggestionFocusProviding,
@@ -262,12 +271,15 @@ final class SuggestionCoordinator: ObservableObject {
             guard let self else { return }
             self.overlayState = state
             // Only sit in the synchronous keystroke critical path while a suggestion is actually
-            // visible. With the overlay hidden, Cotabby observes via a listen-only tap that does
-            // not gate event delivery to other apps (issue #328).
+            // visible *and* accept-ready. With the overlay hidden, Cotabby observes via a
+            // listen-only tap that does not gate event delivery to other apps (issue #328).
+            // Streamed ghosts present while `state == .generating`; arming the accept `defaultTap`
+            // for that whole decode held every keyDown on MainActor and ate / froze typing.
             switch state {
             case .visible:
-                self.inputMonitor.setAcceptInterceptionActive(true)
+                self.syncAcceptInterceptionForVisibleOverlay()
             case .hidden:
+                self.cancelDeferredAcceptInterceptionArm()
                 self.inputMonitor.setAcceptInterceptionActive(false)
                 // A hidden overlay ends any post-exhaustion Tab-ownership window. Every teardown and
                 // abort path hides the overlay, so ending the window here is the single catch-all
