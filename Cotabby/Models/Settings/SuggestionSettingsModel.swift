@@ -720,6 +720,13 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func setAmbientScreenIndexEnabled(_ enabled: Bool) {
+        // Ambient indexing and Fast Mode are mutually exclusive at runtime. Enabling the index
+        // must clear Fast Mode so the Context toggle is never a no-op / permanently greyed-out
+        // control while Fast Mode happens to be on (the previous UI disabled the toggle entirely).
+        if enabled, isFastModeEnabled {
+            setFastModeEnabled(false)
+        }
+
         guard isAmbientScreenIndexEnabled != enabled else {
             return
         }

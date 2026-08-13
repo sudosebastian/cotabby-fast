@@ -25,6 +25,7 @@ import SwiftUI
 /// can type a trailing space; `SuggestionRequestFactory` does the once-per-request trim instead.
 struct ContextPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    @ObservedObject var permissionManager: PermissionManager
     let clearWritingMemory: () -> Void
 
     private static let previewEditorMinHeight: CGFloat = 132
@@ -102,15 +103,28 @@ struct ContextPaneView: View {
             Toggle(isOn: ambientScreenBinding) {
                 SettingsRowLabel(
                     title: "Index all displays",
-                    description: "In the background, OCR every attached display with Vision’s fast " +
-                        "mode, embed the lines with a tiny on-device sentence model, and retrieve the " +
-                        "most relevant snippets for suggestions. Requires Screen Recording; skipped " +
-                        "in Fast Mode. Does not block typing.",
+                    description: ambientIndexDescription,
                     systemImage: "rectangle.on.rectangle"
                 )
             }
             .settingsItem(.ambientScreenIndex)
-            .disabled(suggestionSettings.isFastModeEnabled)
+            // Only Screen Recording can hard-disable this control. Fast Mode used to grey it out
+            // entirely, which made the toggle feel broken whenever Fast Mode was on (including when
+            // Screen Recording forced Fast Mode). Enabling ambient now clears Fast Mode instead.
+            .disabled(!permissionManager.screenRecordingGranted)
+
+            if !permissionManager.screenRecordingGranted {
+                Text("Grant Screen Recording in Permissions to index displays.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if suggestionSettings.isAmbientScreenIndexEnabled,
+                      suggestionSettings.isFastModeEnabled {
+                // Defensive: runtime still pauses ambient while Fast Mode is on. Enabling ambient
+                // clears Fast Mode, so this should be rare, but keep the cue if both end up true.
+                Text("Paused while Fast Mode is on. Turn Fast Mode off to resume indexing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -216,6 +230,16 @@ struct ContextPaneView: View {
             get: { suggestionSettings.isAmbientScreenIndexEnabled },
             set: { suggestionSettings.setAmbientScreenIndexEnabled($0) }
         )
+    }
+
+    private var ambientIndexDescription: String {
+        if !permissionManager.screenRecordingGranted {
+            return "Requires Screen Recording. In the background, OCR every attached display, " +
+                "embed the lines on-device, and retrieve relevant snippets for suggestions."
+        }
+        return "In the background, OCR every attached display with Vision’s fast mode, embed the " +
+            "lines with a tiny on-device sentence model, and retrieve the most relevant snippets " +
+            "for suggestions. Turning this on disables Fast Mode. Does not block typing."
     }
 
     private var characterCountLabel: String {
