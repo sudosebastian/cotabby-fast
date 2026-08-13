@@ -234,6 +234,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.suggestInIntegratedTerminals, pristine.suggestInIntegratedTerminals)
         XCTAssertEqual(model.showIndicator, pristine.showIndicator)
         XCTAssertEqual(model.showAcceptanceHint, pristine.showAcceptanceHint)
+        XCTAssertEqual(model.showFocusDebugOverlays, pristine.showFocusDebugOverlays)
         XCTAssertEqual(model.userName, pristine.userName)
         XCTAssertEqual(model.extendedContext, pristine.extendedContext)
         XCTAssertEqual(model.ghostTextOpacity, pristine.ghostTextOpacity)

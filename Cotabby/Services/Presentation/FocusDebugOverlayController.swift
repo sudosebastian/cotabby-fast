@@ -2,17 +2,36 @@ import AppKit
 import Foundation
 import SwiftUI
 
-/// Gated behind `-cotabby-debug`. Shows focused-input geometry near the caret and renders a
-/// bottom-edge status panel for focus polling diagnostics and the screenshot/OCR visual-context
-/// pipeline.
+/// Available when the process was launched with `-cotabby-debug`. Shows focused-input geometry
+/// near the caret and a bottom-edge status panel for focus polling / visual-context diagnostics.
 ///
-/// The controller is UI-only. It observes already-published app state instead of asking
-/// `FocusTracker` or `VisualContextCoordinator` for data directly, which keeps the service layer
-/// headless and testable.
+/// Visibility is a separate Settings toggle (`showFocusDebugOverlays`) so Dev launches keep the
+/// JSONL / Console debug sinks without forcing on-screen chrome. The controller is UI-only: it
+/// observes already-published app state instead of asking `FocusTracker` or
+/// `VisualContextCoordinator` for data directly.
 @MainActor
 final class FocusDebugOverlayController {
+    /// True when the debug launch argument is present. Controls whether the controller is created
+    /// and whether the Settings toggle is shown — not whether panels are currently ordered in.
     static var isEnabled: Bool {
         CotabbyDebugOptions.isEnabled
+    }
+
+    /// Runtime visibility from Settings. When false, panels stay ordered out even though the
+    /// controller still receives state updates (cheap; avoids re-binding Combine on every flip).
+    var isVisible = false {
+        didSet {
+            guard isVisible != oldValue else { return }
+            if !isVisible {
+                hide()
+            } else if let latestFocusContext {
+                showCaretIndicator(context: latestFocusContext)
+                showFrameOutline(context: latestFocusContext)
+                renderBottomStatusPanel()
+            } else {
+                renderBottomStatusPanel()
+            }
+        }
     }
 
     private lazy var caretPanel: NSPanel = makePanel()
@@ -26,17 +45,24 @@ final class FocusDebugOverlayController {
     private var bottomPanelProgrammaticOrigin: CGPoint?
 
     private var latestCaretRect: CGRect?
+    private var latestFocusContext: FocusedInputSnapshot?
     private var latestVisualContextStatus: VisualContextStatus = .idle
     private var latestVisualContextExcerptCharacterCount: Int?
     private var latestPollEvent: FocusPollingEvent?
 
     func update(for snapshot: FocusSnapshot) {
         guard let context = snapshot.context else {
+            latestFocusContext = nil
             hideFocusGeometry()
             return
         }
 
         latestCaretRect = context.caretRect
+        latestFocusContext = context
+        guard isVisible else {
+            hideFocusGeometry()
+            return
+        }
         showCaretIndicator(context: context)
         showFrameOutline(context: context)
     }
@@ -134,7 +160,7 @@ final class FocusDebugOverlayController {
     // MARK: - Bottom status panel
 
     private func renderBottomStatusPanel() {
-        guard shouldShowBottomStatusPanel else {
+        guard isVisible, shouldShowBottomStatusPanel else {
             bottomStatusPanel.orderOut(nil)
             return
         }

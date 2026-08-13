@@ -78,6 +78,9 @@ struct SuggestionPresentationSettings: Equatable {
     var mirrorPreference: MirrorPreference
     var fadeInSuggestions: Bool
     var fadeInDurationSeconds: Double
+    /// Caret/frame/bottom focus-debug overlays. Only meaningful when the process was launched with
+    /// `-cotabby-debug`; the Settings toggle is hidden otherwise.
+    var showFocusDebugOverlays: Bool
 }
 
 /// Non-model inline features that share the global input stream.
@@ -328,6 +331,11 @@ extension SuggestionSettingsData {
     var showAcceptanceHint: Bool {
         get { presentation.showAcceptanceHint }
         set { presentation.showAcceptanceHint = newValue }
+    }
+
+    var showFocusDebugOverlays: Bool {
+        get { presentation.showFocusDebugOverlays }
+        set { presentation.showFocusDebugOverlays = newValue }
     }
 
     var customSuggestionTextColorHex: String? {

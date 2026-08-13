@@ -85,6 +85,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case screenRecording
     // Performance
     case performanceTracking
+    case focusDebugOverlays
     case suggestionQualityStats
     case resourceUsage
     case recentRequests
@@ -163,6 +164,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inputMonitoring: return "Input Monitoring"
         case .screenRecording: return "Screen Recording"
         case .performanceTracking: return "Enable Performance Tracking"
+        case .focusDebugOverlays: return "Show Focus Debug Overlays"
         case .suggestionQualityStats: return "Suggestion Quality"
         case .resourceUsage: return "Live Resource Usage"
         case .recentRequests: return "Recent Requests"
@@ -240,6 +242,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inputMonitoring: return "keyboard"
         case .screenRecording: return "camera.viewfinder"
         case .performanceTracking: return "stopwatch"
+        case .focusDebugOverlays: return "scope"
         case .suggestionQualityStats: return "checkmark.seal"
         case .resourceUsage: return "chart.line.uptrend.xyaxis"
         case .recentRequests: return "list.bullet.clipboard"
@@ -279,7 +282,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .apps
         case .accessibility, .inputMonitoring, .screenRecording:
             return .permissions
-        case .performanceTracking, .suggestionQualityStats, .resourceUsage, .recentRequests:
+        case .performanceTracking, .focusDebugOverlays, .suggestionQualityStats, .resourceUsage,
+             .recentRequests:
             return .performance
         case .checkForUpdates, .support, .githubRepository, .wiki,
              .acknowledgements, .uninstall:
@@ -354,6 +358,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inputMonitoring: return "Required to see keystrokes and the accept key."
         case .screenRecording: return "Optional visual context from the focused window."
         case .performanceTracking: return "Record timing for every model request."
+        case .focusDebugOverlays: return "Show caret, field outline, and focus status overlays (debug builds)."
         case .suggestionQualityStats: return "Shown, accepted, and withheld counters."
         case .resourceUsage: return "Live CPU and memory graphs for the app."
         case .recentRequests: return "Latency log of the most recent generations."
@@ -563,6 +568,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .performanceTracking:
             return ["performance", "tracking", "latency", "metrics", "timing",
                     "telemetry", "analytics", "diagnostics", "measure"]
+        case .focusDebugOverlays:
+            return ["debug", "overlay", "overlays", "focus", "caret", "geometry",
+                    "ax", "polling", "developer", "visual debug", "frame", "badge",
+                    "cotabby-debug", "diagnostics"]
         case .suggestionQualityStats:
             return ["quality", "acceptance", "accepted", "shown", "suppressed", "withheld",
                     "rate", "stats", "counters", "suggestions"]

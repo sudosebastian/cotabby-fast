@@ -35,6 +35,10 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         XCTAssertEqual(data.engine.selectedEngine, .appleIntelligence)
         XCTAssertTrue(data.context.isClipboardContextEnabled)
         XCTAssertFalse(data.presentation.showAcceptanceHint)
+        XCTAssertFalse(
+            data.presentation.showFocusDebugOverlays,
+            "Focus debug overlays default off so -cotabby-debug launches stay quiet until toggled"
+        )
         XCTAssertEqual(data.shortcuts.acceptance.keyCode, SuggestionSettingsStore.defaultAcceptanceKeyCode)
     }
 
