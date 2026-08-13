@@ -520,11 +520,11 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         XCTAssertNotEqual(rig.coordinator.state, .debouncing)
     }
 
-    // MARK: - Accept-tap arming during streamed ghosts
+    // MARK: - Accept-tap arming during streamed / ready ghosts
 
     func test_overlayWhileGenerating_doesNotArmAcceptTapImmediately() {
-        // Streaming presents ghosts under `.generating`. Arming the system-wide accept defaultTap
-        // for that whole decode held every keyDown on MainActor and ate typed characters.
+        // Streaming presents ghosts under `.generating`. Arming the accept defaultTap for that
+        // whole decode held every keyDown and ate typed characters.
         let rig = retained(makeCoordinatorRig())
         rig.coordinator.state = .generating
         let armedBefore = rig.inputMonitor.acceptInterceptionRequests.filter { $0 }.count
@@ -539,13 +539,21 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         )
     }
 
-    func test_overlayWhenReady_armsAcceptTapImmediately() {
+    func test_overlayWhenReady_doesNotArmAcceptTapImmediately() {
+        // Ready ghosts used to arm synchronously on present. Users who keep typing into a just-
+        // appeared suggestion then hit a freshly armed defaultTap on a busy MainActor.
         let rig = retained(makeCoordinatorRig())
         rig.coordinator.state = .ready(text: " world", latency: 0.05)
+        let armedBefore = rig.inputMonitor.acceptInterceptionRequests.filter { $0 }.count
 
         rig.overlayController.showSuggestion(" world", geometry: CotabbyTestFixtures.overlayGeometry())
 
-        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests.last, true)
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests.last, false)
+        XCTAssertEqual(
+            rig.inputMonitor.acceptInterceptionRequests.filter { $0 }.count,
+            armedBefore,
+            "A ready ghost must idle-defer accept-tap arming just like a streamed one"
+        )
     }
 
     func test_streamIdle_eventuallyArmsAcceptTapWhileStillGenerating() async {
@@ -559,5 +567,27 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         }
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
         XCTAssertEqual(rig.coordinator.state, .generating)
+    }
+
+    func test_typingWhileReadyOverlay_disarmsAndDoesNotRearmUntilIdle() async {
+        let rig = retained(makeCoordinatorRig())
+        rig.coordinator.state = .ready(text: " world", latency: 0.05)
+        rig.overlayController.showSuggestion(" world", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        await waitUntil("Ready overlay never armed accept tap after idle") {
+            rig.inputMonitor.acceptInterceptionRequests.last == true
+        }
+
+        let armedCountBeforeTyping = rig.inputMonitor.acceptInterceptionRequests.filter { $0 }.count
+        _ = rig.coordinator.handleInputEvent(
+            CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "x", flags: [])
+        )
+
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests.last, false)
+        XCTAssertEqual(
+            rig.inputMonitor.acceptInterceptionRequests.filter { $0 }.count,
+            armedCountBeforeTyping,
+            "Typing must disarm without immediately re-arming"
+        )
     }
 }

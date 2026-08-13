@@ -47,6 +47,13 @@ enum InputMonitorAcceptTapDecision: Equatable {
 ///   This is the only path that consumes events, so it also owns acceptance side effects. Keeping
 ///   insertion and consumption in the same callback prevents the coordinator from hiding the overlay
 ///   before the tap has decided what to do with the original key.
+///
+/// The consuming taps (accept + toggle) are serviced on a dedicated `InputEventTapRunLoop` thread,
+/// not the main run loop. A `.defaultTap` holds every matching keyDown until its callback returns; if
+/// that callback shares the main run loop with AX polls and overlay layout, ordinary typing stalls or
+/// the system disables the tap (`tapDisabledByTimeout`) and keystrokes vanish. Non-accept keys now
+/// pass through on the tap thread without waiting for MainActor. Only a matching accept/toggle key
+/// hops to MainActor.
 @MainActor
 final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
@@ -102,6 +109,11 @@ final class InputMonitor {
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
 
+    /// Lock-protected binding/arm snapshot read by the consuming-tap thread. MainActor writes on
+    /// every arm/disarm and settings-sensitive refresh so the fast path never touches MainActor
+    /// state.
+    nonisolated let consumingTapGate = ConsumingTapGate()
+
     private var observerTap: CFMachPort?
     private var observerRunLoopSource: CFRunLoopSource?
 
@@ -113,6 +125,11 @@ final class InputMonitor {
     /// disabled, since the whole purpose of the hotkey is to flip that switch back on.
     private var toggleTap: CFMachPort?
     private var toggleRunLoopSource: CFRunLoopSource?
+
+    /// Mirrors of the consuming tap ports for timeout re-enable from the tap thread. The tap
+    /// callbacks are `nonisolated` and must not read MainActor-isolated `acceptTap` / `toggleTap`.
+    nonisolated(unsafe) private var acceptTapPortMirror: CFMachPort?
+    nonisolated(unsafe) private var toggleTapPortMirror: CFMachPort?
 
     /// Tracks whether the consuming tap currently owns accept-key semantics. This is separate
     /// from "a suggestion exists": the observer should only suppress accept-key callbacks when a
@@ -200,6 +217,11 @@ final class InputMonitor {
     /// becomes visible or hidden, so Cotabby only enters the synchronous event path while there is
     /// something to accept.
     func setAcceptInterceptionActive(_ active: Bool) {
+        guard suggestionInterceptionActive != active else {
+            // Bindings can change while the tap stays armed; keep the tap-thread gate current.
+            refreshConsumingTapGate()
+            return
+        }
         suggestionInterceptionActive = active
         updateAcceptTapState()
     }
@@ -207,6 +229,10 @@ final class InputMonitor {
     /// Emoji-capture reason for the active tap. The emoji controller calls this when a `:query`
     /// capture opens or closes, so the tap can consume navigation and commit keys for the duration.
     func setCaptureInterceptionActive(_ active: Bool) {
+        guard captureInterceptionActive != active else {
+            refreshConsumingTapGate()
+            return
+        }
         captureInterceptionActive = active
         updateAcceptTapState()
     }
@@ -223,13 +249,23 @@ final class InputMonitor {
         // this synchronously (even on teardown) lets the fail-open preflight resume passing keys
         // through immediately.
         isAcceptTapOwningAcceptKeys = wantsTap && suggestionInterceptionActive
+        refreshConsumingTapGate()
         if wantsTap {
             installAcceptTapIfNeeded()
+            // Re-enable in case a prior disarm left the port installed but disabled during the
+            // synthetic-drain teardown window.
+            if let acceptTap {
+                CGEvent.tapEnable(tap: acceptTap, enable: true)
+            }
         } else {
-            // Defer only the mach-port invalidation, so a final-chunk accept's synthetic insertion can
-            // drain before the tap is removed (see `acceptTapTeardownDelaySeconds`). Re-check both
-            // reasons at fire time so a suggestion or an emoji capture that re-armed the tap during the
-            // delay keeps it installed.
+            // Stop gating keyDowns immediately. The mach-port invalidation stays deferred so a
+            // final-chunk accept's synthetic insertion can drain (see `acceptTapTeardownDelaySeconds`),
+            // but a disabled tap does not hold the event stream the way an armed `.defaultTap` does.
+            if let acceptTap {
+                CGEvent.tapEnable(tap: acceptTap, enable: false)
+            }
+            // Re-check both reasons at fire time so a suggestion or an emoji capture that re-armed
+            // the tap during the delay keeps it installed.
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapTeardownDelaySeconds) { [weak self] in
                 guard let self else { return }
                 let stillWanted = self.permissionProvider()
@@ -238,6 +274,21 @@ final class InputMonitor {
                 self.destroyAcceptTap()
             }
         }
+    }
+
+    /// Publishes accept/toggle bindings + arm flags for the tap-thread fast path.
+    func refreshConsumingTapGate() {
+        let snapshot = ConsumingTapGate.Snapshot(
+            suggestionInterceptionActive: suggestionInterceptionActive,
+            captureInterceptionActive: captureInterceptionActive,
+            wordAcceptKey: acceptanceKeyCodeProvider(),
+            wordAcceptModifiers: acceptanceKeyModifiersProvider(),
+            fullAcceptKey: fullAcceptanceKeyCodeProvider(),
+            fullAcceptModifiers: fullAcceptanceKeyModifiersProvider(),
+            toggleKey: globalToggleKeyCodeProvider(),
+            toggleModifiers: globalToggleKeyModifiersProvider()
+        )
+        consumingTapGate.publish(snapshot)
     }
 
     private func installObserverTapIfNeeded() {
@@ -297,9 +348,7 @@ final class InputMonitor {
             }
 
             let monitor = Unmanaged<InputMonitor>.fromOpaque(userInfo).takeUnretainedValue()
-            return MainActor.assumeIsolated {
-                monitor.handleAcceptTap(type: type, event: event)
-            }
+            return monitor.handleAcceptTapFromTapThread(type: type, event: event)
         }
 
         // Tail-append so this tap runs *after* the head-inserted observer. The observer is
@@ -316,14 +365,15 @@ final class InputMonitor {
             CotabbyLogger.app.warning("Failed to create CGEvent accept tap")
             return
         }
-        CotabbyLogger.app.info("CGEvent accept tap installed (active, accept-key only)")
+        CotabbyLogger.app.info("CGEvent accept tap installed (active, accept-key only, dedicated runloop)")
 
         acceptTap = tap
+        acceptTapPortMirror = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         acceptRunLoopSource = source
 
         if let source {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            InputEventTapRunLoop.shared.addSource(source)
         }
 
         CGEvent.tapEnable(tap: tap, enable: true)
@@ -334,6 +384,8 @@ final class InputMonitor {
             return
         }
 
+        refreshConsumingTapGate()
+
         let mask = (1 << CGEventType.keyDown.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else {
@@ -341,9 +393,7 @@ final class InputMonitor {
             }
 
             let monitor = Unmanaged<InputMonitor>.fromOpaque(userInfo).takeUnretainedValue()
-            return MainActor.assumeIsolated {
-                monitor.handleToggleTap(type: type, event: event)
-            }
+            return monitor.handleToggleTapFromTapThread(type: type, event: event)
         }
 
         // Head-inserted so the toggle hotkey is decided before any other tap (including the accept
@@ -361,14 +411,15 @@ final class InputMonitor {
             CotabbyLogger.app.warning("Failed to create CGEvent toggle tap")
             return
         }
-        CotabbyLogger.app.info("CGEvent toggle tap installed (active, toggle-hotkey only)")
+        CotabbyLogger.app.info("CGEvent toggle tap installed (active, toggle-hotkey only, dedicated runloop)")
 
         toggleTap = tap
+        toggleTapPortMirror = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         toggleRunLoopSource = source
 
         if let source {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            InputEventTapRunLoop.shared.addSource(source)
         }
 
         CGEvent.tapEnable(tap: tap, enable: true)
@@ -392,7 +443,7 @@ final class InputMonitor {
             return
         }
         if let source = acceptRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            InputEventTapRunLoop.shared.removeSource(source)
         }
         acceptRunLoopSource = nil
 
@@ -400,6 +451,7 @@ final class InputMonitor {
             CFMachPortInvalidate(tap)
         }
         acceptTap = nil
+        acceptTapPortMirror = nil
         CotabbyLogger.app.info("CGEvent accept tap removed")
     }
 
@@ -408,7 +460,7 @@ final class InputMonitor {
             return
         }
         if let source = toggleRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            InputEventTapRunLoop.shared.removeSource(source)
         }
         toggleRunLoopSource = nil
 
@@ -416,7 +468,114 @@ final class InputMonitor {
             CFMachPortInvalidate(tap)
         }
         toggleTap = nil
+        toggleTapPortMirror = nil
         CotabbyLogger.app.info("CGEvent toggle tap removed")
+    }
+
+    /// Tap-thread entry for the accept `.defaultTap`. Ordinary keyDowns return immediately using the
+    /// gate snapshot; only accept-key (or emoji-capture) matches hop to MainActor.
+    nonisolated func handleAcceptTapFromTapThread(
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            // Re-enable without waiting for MainActor — a timed-out tap that stays down drops keys.
+            if let tap = acceptTapPortForReenable() {
+                CotabbyLogger.app.warning("Accept tap was disabled by system, re-enabling")
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+
+        case .keyDown:
+            if event.getIntegerValueField(.eventSourceUserData)
+                == InputSuppressionController.syntheticEventUserData {
+                return Unmanaged.passUnretained(event)
+            }
+
+            let gate = consumingTapGate.snapshot()
+            let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+            if ConsumingTapFastPath.shouldInvokeMainActorForAccept(
+                gate: gate,
+                keyCode: keyCode,
+                flags: event.flags
+            ) {
+                return invokeAcceptTapOnMainActor(type: type, event: event)
+            }
+            return Unmanaged.passUnretained(event)
+
+        default:
+            return Unmanaged.passUnretained(event)
+        }
+    }
+
+    /// Tap-thread entry for the toggle `.defaultTap`. Non-matching keys never wait on MainActor.
+    nonisolated func handleToggleTapFromTapThread(
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            if let tap = toggleTapPortForReenable() {
+                CotabbyLogger.app.warning("Toggle tap was disabled by system, re-enabling")
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+
+        case .keyDown:
+            if event.getIntegerValueField(.eventSourceUserData)
+                == InputSuppressionController.syntheticEventUserData {
+                return Unmanaged.passUnretained(event)
+            }
+
+            let gate = consumingTapGate.snapshot()
+            let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+            if ConsumingTapFastPath.shouldInvokeMainActorForToggle(
+                gate: gate,
+                keyCode: keyCode,
+                flags: event.flags
+            ) {
+                return invokeToggleTapOnMainActor(type: type, event: event)
+            }
+            return Unmanaged.passUnretained(event)
+
+        default:
+            return Unmanaged.passUnretained(event)
+        }
+    }
+
+    nonisolated private func invokeAcceptTapOnMainActor(
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        var result: Unmanaged<CGEvent>? = Unmanaged.passUnretained(event)
+        DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                result = self.handleAcceptTap(type: type, event: event)
+            }
+        }
+        return result
+    }
+
+    nonisolated private func invokeToggleTapOnMainActor(
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        var result: Unmanaged<CGEvent>? = Unmanaged.passUnretained(event)
+        DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                result = self.handleToggleTap(type: type, event: event)
+            }
+        }
+        return result
+    }
+
+    nonisolated private func acceptTapPortForReenable() -> CFMachPort? {
+        acceptTapPortMirror
+    }
+
+    nonisolated private func toggleTapPortForReenable() -> CFMachPort? {
+        toggleTapPortMirror
     }
 
     /// Active toggle tap: consumes a keystroke only when it matches the configured global-toggle
@@ -772,5 +931,132 @@ private extension CGEvent {
 
         keyboardGetUnicodeString(maxStringLength: length, actualStringLength: &length, unicodeString: buffer)
         return String(utf16CodeUnits: buffer, count: length)
+    }
+}
+
+// MARK: - Consuming-tap runloop + fast path
+
+/// Dedicated CFRunLoop thread for consuming (`.defaultTap`) event taps.
+///
+/// Why this exists as its own type: a `.defaultTap` callback must return before the keystroke is
+/// delivered. Servicing that callback on the main run loop couples every keyDown to whatever AX /
+/// overlay work MainActor is doing. A private runloop lets non-matching keys pass through while
+/// MainActor is busy; only accept/toggle matches hop over.
+final class InputEventTapRunLoop: @unchecked Sendable {
+    static let shared = InputEventTapRunLoop()
+
+    private let thread: Thread
+    private var runLoop: CFRunLoop!
+    private let lock = NSLock()
+
+    private init() {
+        let ready = DispatchSemaphore(value: 0)
+        var capturedRunLoop: CFRunLoop?
+        thread = Thread {
+            let current = CFRunLoopGetCurrent()
+            capturedRunLoop = current
+            ready.signal()
+            // Keep the thread alive. Tap sources are added/removed dynamically for the lifetime of
+            // the process; without a runloop the mach-port callbacks would never fire.
+            CFRunLoopRun()
+        }
+        thread.name = "cotabby.input-consuming-taps"
+        thread.qualityOfService = .userInteractive
+        thread.start()
+        ready.wait()
+        runLoop = capturedRunLoop
+    }
+
+    func addSource(_ source: CFRunLoopSource) {
+        lock.lock()
+        defer { lock.unlock() }
+        CFRunLoopAddSource(runLoop, source, .commonModes)
+        CFRunLoopWakeUp(runLoop)
+    }
+
+    func removeSource(_ source: CFRunLoopSource) {
+        lock.lock()
+        defer { lock.unlock() }
+        CFRunLoopRemoveSource(runLoop, source, .commonModes)
+    }
+}
+
+/// Lock-protected arm + binding snapshot shared between MainActor (writer) and the consuming-tap
+/// thread (reader). Keeps the fast path free of MainActor hops for ordinary typing.
+final class ConsumingTapGate: @unchecked Sendable {
+    struct Snapshot: Equatable, Sendable {
+        var suggestionInterceptionActive = false
+        var captureInterceptionActive = false
+        var wordAcceptKey: CGKeyCode = 48
+        var wordAcceptModifiers: ShortcutModifierMask = []
+        var fullAcceptKey: CGKeyCode = CGKeyCode(UInt16.max)
+        var fullAcceptModifiers: ShortcutModifierMask = []
+        var toggleKey: CGKeyCode = CGKeyCode(UInt16.max)
+        var toggleModifiers: ShortcutModifierMask = []
+    }
+
+    private let lock = NSLock()
+    private var state = Snapshot()
+
+    func publish(_ snapshot: Snapshot) {
+        lock.lock()
+        state = snapshot
+        lock.unlock()
+    }
+
+    func snapshot() -> Snapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return state
+    }
+}
+
+/// Pure matching rules for the consuming-tap fast path. Extracted so unit tests can lock the
+/// "typing never waits on MainActor" invariant without installing real CGEvent taps.
+enum ConsumingTapFastPath {
+    /// True when the accept tap must consult MainActor (accept key, or any key during emoji capture).
+    static func shouldInvokeMainActorForAccept(
+        gate: ConsumingTapGate.Snapshot,
+        keyCode: CGKeyCode,
+        flags: CGEventFlags
+    ) -> Bool {
+        guard gate.suggestionInterceptionActive || gate.captureInterceptionActive else {
+            return false
+        }
+        // Emoji capture can consume navigation / Escape / commit keys that are not the suggestion
+        // accept binding, so every key needs the MainActor decider while capture is open.
+        if gate.captureInterceptionActive {
+            return true
+        }
+        return matchesAcceptBinding(gate: gate, keyCode: keyCode, flags: flags)
+    }
+
+    /// True when the toggle tap must consult MainActor for a matching hotkey.
+    static func shouldInvokeMainActorForToggle(
+        gate: ConsumingTapGate.Snapshot,
+        keyCode: CGKeyCode,
+        flags: CGEventFlags
+    ) -> Bool {
+        let disabled = CGKeyCode(UInt16.max)
+        guard gate.toggleKey != disabled else {
+            return false
+        }
+        let modifiers = ShortcutModifierMask(eventFlags: flags)
+        return keyCode == gate.toggleKey && modifiers == gate.toggleModifiers
+    }
+
+    static func matchesAcceptBinding(
+        gate: ConsumingTapGate.Snapshot,
+        keyCode: CGKeyCode,
+        flags: CGEventFlags
+    ) -> Bool {
+        let modifiers = ShortcutModifierMask(eventFlags: flags)
+        if keyCode == gate.fullAcceptKey, modifiers == gate.fullAcceptModifiers {
+            return true
+        }
+        if keyCode == gate.wordAcceptKey, modifiers == gate.wordAcceptModifiers {
+            return true
+        }
+        return false
     }
 }

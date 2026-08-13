@@ -438,9 +438,8 @@ extension SuggestionCoordinator {
     /// Renders one streamed partial as a real session with ghost text.
     ///
     /// A real session rather than a cosmetic overlay because acceptance gates on the live session
-    /// (never on `state`). The accept `defaultTap` stays off while `state == .generating` and only
-    /// arms after a short stream-idle window (or immediately on final `.ready`) so early Tab still
-    /// works without gating every typed keyDown on MainActor for the whole decode. Accepting
+    /// (never on `state`). The accept `defaultTap` stays off until a short stream/typing-idle
+    /// window so early Tab still works without arming during active decode or typeahead. Accepting
     /// cancels the in-flight work (work id bump), freezing the suggestion at what was streamed.
     /// Renders are monotonic (`StreamedGhostTextPolicy`) so reordered hops and normalizer rewrites
     /// never shrink visible ghost text, and the materialize check stops partials the moment the

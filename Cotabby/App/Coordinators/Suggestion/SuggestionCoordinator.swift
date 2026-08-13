@@ -154,14 +154,15 @@ final class SuggestionCoordinator: ObservableObject {
     /// coordinator continues to own the timer and input-monitor effects around these transitions.
     var postExhaustionAcceptanceState = PostExhaustionAcceptanceState()
 
-    /// Pending idle-arm for the accept tap while a streamed ghost is visible under `.generating`.
-    /// Cancelled on every new partial, on hide, and when the suggestion reaches `.ready`.
+    /// Pending idle-arm for the accept tap while a ghost is visible. Cancelled on every new
+    /// partial, on typing, on hide, and rescheduled whenever the overlay stays up after a pause.
     var acceptInterceptionArmWorkItem: DispatchWorkItem?
 
-    /// How long streaming must go quiet before we install the system-wide accept `defaultTap`.
-    /// During an active stream, holding that tap gates every keyDown on MainActor and was freezing
-    /// / dropping typed characters. A short idle still allows early Tab once tokens pause.
-    static let streamAcceptArmIdleMilliseconds = 120
+    /// How long streaming *and* typing must go quiet before we install the accept `defaultTap`.
+    /// Even with the tap on a dedicated runloop, arming during active typing is wasted work and
+    /// still forces MainActor hops for Tab-shaped collisions. A short idle still allows Tab once
+    /// the user pauses.
+    static let streamAcceptArmIdleMilliseconds = 150
 
     init(
         permissionManager: any SuggestionPermissionProviding,
@@ -270,11 +271,10 @@ final class SuggestionCoordinator: ObservableObject {
         overlayController.onStateChange = { [weak self] state in
             guard let self else { return }
             self.overlayState = state
-            // Only sit in the synchronous keystroke critical path while a suggestion is actually
-            // visible *and* accept-ready. With the overlay hidden, Cotabby observes via a
-            // listen-only tap that does not gate event delivery to other apps (issue #328).
-            // Streamed ghosts present while `state == .generating`; arming the accept `defaultTap`
-            // for that whole decode held every keyDown on MainActor and ate / froze typing.
+            // Only sit in the consuming-tap path while a suggestion is actually visible, and even
+            // then only after a short stream/typing idle (see `syncAcceptInterceptionForVisibleOverlay`).
+            // With the overlay hidden, Cotabby observes via a listen-only tap that does not gate
+            // event delivery to other apps (issue #328).
             switch state {
             case .visible:
                 self.syncAcceptInterceptionForVisibleOverlay()

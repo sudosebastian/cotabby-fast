@@ -183,6 +183,13 @@ extension SuggestionCoordinator {
             return false
         }
 
+        // Keep the accept `defaultTap` off while the user is actively typing, even if a ready ghost
+        // is still visible (matched-character advances leave the overlay up). Continuous arming
+        // during typing was the remaining "keys vanish when I type ahead of the suggestion" path.
+        if event.kind == .textMutation || event.kind == .shortcutMutation {
+            deferAcceptInterceptionAfterTypingActivity()
+        }
+
         if event.kind == .acceptance {
             return acceptCurrentSuggestion()
         }

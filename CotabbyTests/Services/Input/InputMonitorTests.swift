@@ -274,6 +274,77 @@ final class InputMonitorTests: XCTestCase {
         }
     }
 
+    // MARK: - Consuming-tap fast path
+
+    func test_acceptFastPath_skipsMainActorForOrdinaryTyping() {
+        var gate = ConsumingTapGate.Snapshot()
+        gate.suggestionInterceptionActive = true
+        gate.wordAcceptKey = 48
+        gate.wordAcceptModifiers = []
+
+        XCTAssertFalse(
+            ConsumingTapFastPath.shouldInvokeMainActorForAccept(
+                gate: gate,
+                keyCode: 0,
+                flags: []
+            ),
+            "Typed characters must pass through on the tap thread without a MainActor hop"
+        )
+        XCTAssertTrue(
+            ConsumingTapFastPath.shouldInvokeMainActorForAccept(
+                gate: gate,
+                keyCode: 48,
+                flags: []
+            ),
+            "The accept key must still consult MainActor to decide consume vs pass-through"
+        )
+    }
+
+    func test_acceptFastPath_requiresMainActorForEveryKeyDuringEmojiCapture() {
+        var gate = ConsumingTapGate.Snapshot()
+        gate.captureInterceptionActive = true
+        gate.wordAcceptKey = 48
+
+        XCTAssertTrue(
+            ConsumingTapFastPath.shouldInvokeMainActorForAccept(
+                gate: gate,
+                keyCode: 0,
+                flags: []
+            )
+        )
+    }
+
+    func test_toggleFastPath_skipsMainActorWhenUnboundOrUnmatched() {
+        var gate = ConsumingTapGate.Snapshot()
+        gate.toggleKey = CGKeyCode(UInt16.max)
+
+        XCTAssertFalse(
+            ConsumingTapFastPath.shouldInvokeMainActorForToggle(
+                gate: gate,
+                keyCode: 0,
+                flags: []
+            )
+        )
+
+        gate.toggleKey = 49
+        gate.toggleModifiers = [.command]
+        XCTAssertFalse(
+            ConsumingTapFastPath.shouldInvokeMainActorForToggle(
+                gate: gate,
+                keyCode: 49,
+                flags: []
+            ),
+            "Bare key must not match a command-qualified toggle binding"
+        )
+        XCTAssertTrue(
+            ConsumingTapFastPath.shouldInvokeMainActorForToggle(
+                gate: gate,
+                keyCode: 49,
+                flags: .maskCommand
+            )
+        )
+    }
+
     @MainActor
     private func makeMonitor() -> InputMonitor {
         let monitor = InputMonitor(
