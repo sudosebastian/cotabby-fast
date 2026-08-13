@@ -146,6 +146,7 @@ struct SettingsContainerView: View {
         case .context:
             ContextPaneView(
                 suggestionSettings: suggestionSettings,
+                permissionManager: permissionManager,
                 clearWritingMemory: clearWritingMemory
             )
         case .shortcuts:
