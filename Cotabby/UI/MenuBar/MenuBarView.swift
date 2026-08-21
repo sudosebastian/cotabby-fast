@@ -1,18 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// File overview:
-/// Composes Cotabby's primary menu-bar control panel as a status-first surface
-/// with inline quick controls for session-level preferences.
+/// Menu bar control panel — rebuilt from the design brief.
 ///
-/// Design philosophy: the menu bar is the primary interaction surface for a menu bar app.
-/// It shows status at a glance and exposes the controls users reach for mid-session
-/// (engine, model, completion length). Rarely-changed settings (model management,
-/// profile personalization, updates) live in the Settings window.
-///
-/// The focused-app context card was intentionally removed: opening the menu bar panel
-/// steals focus from whatever app the user was typing in, so live focus state is always
-/// stale by the time the panel renders.
+/// Hierarchy: (1) on/off state (2) session controls (3) Settings / Quit.
+/// Dials: quiet · standard · low brand · engineered · functional.
+/// Opening the panel steals focus, so focused-app context is never shown as live truth.
 struct MenuBarView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
@@ -26,20 +19,19 @@ struct MenuBarView: View {
     let onOpenSettings: () -> Void
     let onReportFeedback: () -> Void
 
-    /// Captures the popover's host window so `Button` actions that open another window can dismiss
-    /// the popover behind them. SwiftUI's `\.dismiss` does not work for `MenuBarExtra(.window)`.
     @StateObject private var popoverDismisser = MenuBarPopoverDismisser()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            headerSection
-            Divider().padding(.bottom, 12)
+        VStack(alignment: .leading, spacing: TabfastDesign.Space.sm) {
+            statusHeader
+            Divider()
             controlsSection
-            permissionsCard
+            permissionsSection
+            Divider()
             footerSection
         }
-        .padding(16)
-        .frame(width: 340)
+        .padding(TabfastDesign.Space.md)
+        .frame(width: TabfastDesign.Space.menuBarWidth)
         .modifier(MenuBarWindowBackgroundModifier())
         .background(
             MenuBarPresentationObserver {
@@ -59,41 +51,33 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: - Header
-
-    @ViewBuilder
-    private var headerSection: some View {
-        HStack(alignment: .center) {
-            Text("Tabfast")
-                .font(.headline)
-
-            if let appShortVersion {
-                Text(appShortVersion)
-                    .font(.caption)
+    /// Far-view: On / Off / Paused. Near-view: version + report.
+    private var statusHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(statusTitle)
+                    .font(TabfastDesign.Typography.headline)
+                Text("Tabfast")
+                    .font(TabfastDesign.Typography.caption)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("Version \(appShortVersion)")
             }
-
-            // Ko-fi tip jar lives next to the title because the menu bar surface is the most
-            // frequented entry point. Using a Link lets SwiftUI hand the URL to NSWorkspace and
-            // dismiss the popover; a Button would need its own handler plumbing for the same effect.
-            if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
-                Link("Support Us", destination: kofiURL)
-                    .buttonStyle(.borderless)
-                    .font(.subheadline)
-            }
-
             Spacer(minLength: 0)
-
-            Button("Report Bug", action: onReportFeedback)
+            Button("Report", action: onReportFeedback)
                 .buttonStyle(.borderless)
-                .font(.subheadline)
+                .font(TabfastDesign.Typography.caption)
         }
-        .padding(.bottom, 12)
     }
 
-    /// Short, user-facing app version (e.g. "0.4.2-beta") shown next to the title. Reads the bundle's
-    /// `CFBundleShortVersionString`, the same canonical source the About pane uses.
+    private var statusTitle: String {
+        if !suggestionSettings.isGloballyEnabled {
+            return "Off"
+        }
+        if suggestionSettings.isTemporarilyPaused {
+            return "Paused"
+        }
+        return "On"
+    }
+
     private var appShortVersion: String? {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
@@ -118,8 +102,8 @@ struct MenuBarView: View {
                     .disabled(fastModeForcedOn)
 
                 if fastModeForcedOn {
-                    Text("Forced on because Screen Recording is off")
-                        .font(.caption2)
+                    Text("On — Screen Recording is off")
+                        .font(TabfastDesign.Typography.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -174,7 +158,7 @@ struct MenuBarView: View {
             Divider()
 
             // Context-shaping toggles that change what the model is fed.
-            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+            Toggle("Clipboard context", isOn: clipboardContextEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
@@ -224,14 +208,10 @@ struct MenuBarView: View {
 
             }
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, 0)
     }
 
-    /// Model selector with folder + refresh shortcuts — only visible when local llama engine is active.
-    /// The picker is constrained to fill remaining row width so long filenames truncate inside the
-    /// NSPopUpButton label instead of pushing the trailing icons off-row. Per-item `.lineLimit` /
-    /// `.truncationMode` modifiers are unreliable here because AppKit's native popup ignores them
-    /// for the selected-value label.
+    /// Model selector with folder + refresh — only when local llama is active.
     @ViewBuilder
     private var modelRow: some View {
         MenuBarPickerRow(title: "Model") {
@@ -282,12 +262,11 @@ struct MenuBarView: View {
     /// shown as a feature toggle, but it never blocks autocomplete (see
     /// `CotabbyPermissionKind.isRequiredForAutocomplete`).
     @ViewBuilder
-    private var permissionsCard: some View {
+    private var permissionsSection: some View {
         if !allPermissionsGranted {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: TabfastDesign.Space.xs) {
                 Text("Permissions")
-                    .font(.subheadline.weight(.medium))
-                    .padding(.bottom, 2)
+                    .font(TabfastDesign.Typography.callout.weight(.semibold))
 
                 ForEach(CotabbyPermissionKind.allCases) { permission in
                     PermissionRow(
@@ -303,30 +282,20 @@ struct MenuBarView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-            .padding(.bottom, 12)
         }
     }
 
-    // MARK: - Footer
-
     @ViewBuilder
     private var footerSection: some View {
-        Divider()
-            .padding(.bottom, 10)
-
         HStack {
             Button("Settings") {
-                // Dismiss the popover before opening the Settings window so the popover doesn't
-                // remain on top of (and obscure) the Settings pane. See issue #455.
                 popoverDismisser.dismiss()
                 onOpenSettings()
             }
             .buttonStyle(.borderless)
 
             if appUpdateManager.isAvailable {
-                Button("Check for Updates") {
+                Button("Updates") {
                     appUpdateManager.checkForUpdates()
                 }
                 .buttonStyle(.borderless)
@@ -340,7 +309,7 @@ struct MenuBarView: View {
             .buttonStyle(.borderless)
             .keyboardShortcut("q")
         }
-        .font(.subheadline)
+        .font(TabfastDesign.Typography.callout)
     }
 
     // MARK: - Bindings

@@ -31,7 +31,7 @@ struct PermissionReminderView: View {
                 systemImage: "exclamationmark.shield.fill",
                 tint: .orange,
                 title: "Permissions needed",
-                subtitle: "Tabfast needs these permissions to work.\nGrant them in System Settings, then come back here."
+                subtitle: "Grant Accessibility and Input Monitoring in System Settings, then return here."
             )
             .onboardingReveal(0)
 
