@@ -359,12 +359,13 @@ final class FocusTracker {
         lastFocusedInputSignature = nextSignature
         focusChangeSequence += 1
 
-        let finalSnapshot = snapshotResolver.resolveSnapshot(
-            focusedElement: focusedElement,
-            application: application,
-            focusChangeSequence: focusChangeSequence
+        // First pass already walked AX for the new field. Remap the monotonic sequence onto that
+        // snapshot instead of paying a second full resolve (geometry + attribute enumeration).
+        // Session-scoped caches key on the new sequence, so the next poll starts clean.
+        return FocusCaptureResult(
+            snapshot: firstPassSnapshot.withFocusChangeSequence(focusChangeSequence),
+            didChangeFocusedInput: true
         )
-        return FocusCaptureResult(snapshot: finalSnapshot, didChangeFocusedInput: true)
     }
 
     /// Final link in the focus-resolution chain for Chromium-family apps: when both the system-wide

@@ -49,9 +49,7 @@ struct GhostSuggestionView: View {
         let baseColor = customColor
             ?? fieldColor
             ?? (
-                colorScheme == .dark
-                    ? Color(red: 0.65, green: 0.65, blue: 0.65)
-                    : Color(red: 0.45, green: 0.45, blue: 0.45)
+                TabfastDesign.ColorToken.ghostInk(for: colorScheme)
             )
         return baseColor.opacity(opacity)
     }
@@ -112,17 +110,17 @@ struct GhostKeycap: View {
 
     var body: some View {
         Text(label)
-            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .font(TabfastDesign.Typography.keycap)
             .foregroundStyle(textColor)
-            .padding(.horizontal, 5)
+            .padding(.horizontal, TabfastDesign.Space.xxs + 1)
             .padding(.vertical, 2)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: TabfastDesign.Radius.keycap, style: .continuous)
                     .fill(bgColor)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
+                RoundedRectangle(cornerRadius: TabfastDesign.Radius.keycap, style: .continuous)
+                    .stroke(borderColor, lineWidth: 0.5)
             )
             .fixedSize(horizontal: true, vertical: true)
     }

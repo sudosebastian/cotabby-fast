@@ -33,14 +33,14 @@ struct AboutPaneView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Tabfast")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(TabfastDesign.Typography.title)
 
-                Text("Local macOS AI Autocomplete")
-                    .font(.system(size: 12, design: .rounded))
+                Text("Local autocomplete for macOS")
+                    .font(TabfastDesign.Typography.caption)
                     .foregroundStyle(.secondary)
 
                 Text(appVersionText)
-                    .font(.system(size: 11, design: .rounded))
+                    .font(TabfastDesign.Typography.caption2)
                     .foregroundStyle(.secondary)
             }
 

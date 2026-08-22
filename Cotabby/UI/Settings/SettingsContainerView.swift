@@ -22,9 +22,12 @@ struct SettingsContainerView: View {
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
-    @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
-    @ObservedObject var qualityMetricsStore: SuggestionQualityMetricsStore
-    @ObservedObject var systemMetricsStore: SystemMetricsStore
+    // Metrics stores are observed only by PerformancePaneView. Holding them as `@ObservedObject`
+    // here invalidated the whole Settings split view on every quality/latency/sample publish —
+    // including while typing with Settings open on an unrelated pane.
+    let performanceMetricsStore: PerformanceMetricsStore
+    let qualityMetricsStore: SuggestionQualityMetricsStore
+    let systemMetricsStore: SystemMetricsStore
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void

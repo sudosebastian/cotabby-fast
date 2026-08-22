@@ -65,6 +65,35 @@ final class OverlayController: SuggestionOverlayControlling {
     /// measure the handed-off prefix in exactly the rendered typeface. Nil until the first inline show.
     private var lastInlineRenderFont: NSFont?
     private var lastInlineFontSize: CGFloat?
+    private var lastInlineStreamAnchor: InlineStreamAnchor?
+
+    /// Stable caret/session keys for streaming updates. When these match the previous inline show,
+    /// skip font stabilization and field-font resolution — still lay out the growing text.
+    private struct InlineStreamAnchor: Equatable {
+        let caretRect: CGRect
+        let focusedInputIdentityKey: UInt64
+        let isCorrection: Bool
+        let isRightToLeft: Bool
+
+        init(geometry: SuggestionOverlayGeometry) {
+            caretRect = geometry.caretRect
+            focusedInputIdentityKey = geometry.focusedInputIdentityKey
+            isCorrection = geometry.isCorrection
+            isRightToLeft = geometry.isRightToLeft
+        }
+
+        init(
+            caretRect: CGRect,
+            focusedInputIdentityKey: UInt64,
+            isCorrection: Bool,
+            isRightToLeft: Bool
+        ) {
+            self.caretRect = caretRect
+            self.focusedInputIdentityKey = focusedInputIdentityKey
+            self.isCorrection = isCorrection
+            self.isRightToLeft = isRightToLeft
+        }
+    }
 
     init(
         suggestionSettings: SuggestionSettingsModel,
@@ -153,6 +182,7 @@ final class OverlayController: SuggestionOverlayControlling {
     func hide(reason: String) {
         panel.orderOut(nil)
         state = .hidden(reason: reason)
+        lastInlineStreamAnchor = nil
     }
 
     /// Mirrors the system Accessibility "Reduce Motion" preference. Read live so flipping it in
@@ -186,29 +216,33 @@ final class OverlayController: SuggestionOverlayControlling {
         geometry: SuggestionOverlayGeometry,
         precomputedLayout: GhostSuggestionLayout? = nil
     ) {
-        // Key the stabilizer on the field's identity rather than `focusChangeSequence`. The polling
-        // signature in `FocusTracker` bumps `focusChangeSequence` whenever the field's frame
-        // changes, which includes the common "input grew taller as text wrapped" case. Using the
-        // identity key keeps the per-session caret-height minimum alive across that growth and
-        // still resets on genuine field switches.
-        let stabilizedCaretHeight = ghostFontStabilizer.stabilizedCaretHeight(
-            geometry.caretRect.height,
-            focusSessionKey: geometry.focusedInputIdentityKey
-        )
-        // The host field's own font, when AX exposed it. Instantiated at the reported size only to
-        // read its (scale-invariant) glyph-box ratio; the rendered size comes from the caret height.
-        let referenceFieldFont = geometry.resolvedFieldStyle.flatMap(fieldFont(from:))
-        let fontSize = resolvedGhostFontSize(
-            forCaretHeight: stabilizedCaretHeight,
-            caretQuality: geometry.caretQuality,
-            fieldFont: referenceFieldFont
-        )
-        // Render in the field's typeface at the derived size so the ghost reads as a continuation of
-        // the host text rather than pasted-on system font. Nil falls back to the system font.
-        let renderFont = referenceFieldFont.flatMap { NSFont(name: $0.fontName, size: fontSize) }
-        // `nil` when the user disabled the hint or no accept key is bound — in that case the layout
-        // drops the keycap and its reserved width so ghost text can use the full line.
         let acceptanceHintLabel = suggestionSettings.acceptanceHintLabel
+        let fontSize: CGFloat
+        let renderFont: NSFont?
+
+        // Streaming partials re-enter with the same caret/session while text grows. Reuse the
+        // resolved typeface instead of re-running caret-height stabilization and field-font lookup
+        // on every coalesced token (~16ms cadence).
+        let streamAnchor = InlineStreamAnchor(geometry: geometry)
+        if precomputedLayout == nil,
+           streamAnchor == lastInlineStreamAnchor,
+           let cachedSize = lastInlineFontSize {
+            fontSize = cachedSize
+            renderFont = lastInlineRenderFont
+        } else {
+            let stabilizedCaretHeight = ghostFontStabilizer.stabilizedCaretHeight(
+                geometry.caretRect.height,
+                focusSessionKey: geometry.focusedInputIdentityKey
+            )
+            let referenceFieldFont = geometry.resolvedFieldStyle.flatMap(fieldFont(from:))
+            fontSize = resolvedGhostFontSize(
+                forCaretHeight: stabilizedCaretHeight,
+                caretQuality: geometry.caretQuality,
+                fieldFont: referenceFieldFont
+            )
+            renderFont = referenceFieldFont.flatMap { NSFont(name: $0.fontName, size: fontSize) }
+        }
+
         let layout = precomputedLayout ?? GhostSuggestionLayout.make(
             text: text,
             geometry: geometry,
@@ -243,32 +277,29 @@ final class OverlayController: SuggestionOverlayControlling {
             contentView = fresh
         }
 
-        // Mirror mode and inline mode share the same panel but use different SwiftUI root view
-        // types. Switching modes mid-suggestion requires re-attaching the panel's contentView; an
-        // identity check skips the re-attach when we're already on the right view.
         if panel.contentView !== contentView {
             panel.contentView = contentView
         }
 
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
-
         let frame = layout.panelFrame(for: contentSize, caretRect: geometry.caretRect)
 
-        // Last-resort guard: AppKit raises on a non-finite frame. The AX ingest boundary already
-        // rejects NaN/Inf rects, so reaching here means the layout math produced one; skip the show
-        // rather than crash on the hottest path.
         guard AXHelper.rectHasFiniteComponents(frame) else {
             CotabbyLogger.suggestion.warning("Skipped inline overlay: computed a non-finite frame")
             return
         }
-        panel.setFrame(frame.integral, display: true)
-        panel.orderFrontRegardless()
+        let integralFrame = frame.integral
+        if panel.frame != integralFrame {
+            panel.setFrame(integralFrame, display: true)
+        }
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
 
-        // Capture exactly what this inline render used, so a subsequent `advanceInline` slides the
-        // panel by the prefix width measured in the same typeface and size.
         lastInlineFontSize = fontSize
         lastInlineRenderFont = renderFont
+        lastInlineStreamAnchor = streamAnchor
     }
 
     /// Advances a visible single-line inline ghost to `remainingText` by sliding the panel right by

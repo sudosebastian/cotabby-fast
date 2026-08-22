@@ -1,15 +1,17 @@
+import Combine
 import SwiftUI
 
 /// File overview:
-/// Renders the tiny always-visible menu-bar label. This view stays intentionally separate from
-/// the larger menu content so the menu-bar extra can stay minimal even as the panel layout evolves.
+/// Always-visible menu-bar label. Kept separate from the panel so the status item stays tiny.
 ///
-/// This label lives in its own view because `MenuBarExtra` does not automatically observe
-/// plain properties hanging off `AppDelegate`. By observing the coordinator directly here,
-/// SwiftUI knows when to redraw the menu bar item as the accepted word count changes.
+/// Observes settings for pause/enable chrome and only the word-count publisher from the
+/// coordinator — not the coordinator as `@ObservedObject`. Visual-context and overlay publishes
+/// on `SuggestionCoordinator` would otherwise redraw this label on every OCR/status tick.
 struct MenuBarStatusLabelView: View {
-    @ObservedObject var suggestionCoordinator: SuggestionCoordinator
+    let suggestionCoordinator: SuggestionCoordinator
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+
+    @State private var totalTabAcceptedWordCount: Int = 0
 
     var body: some View {
         HStack(spacing: 2) {
@@ -24,18 +26,19 @@ struct MenuBarStatusLabelView: View {
             }
 
             if suggestionSettings.isMenuBarWordCountVisible,
-               let label = WordCountFormatter.compactLabel(
-                   for: suggestionCoordinator.totalTabAcceptedWordCount
-               ) {
+               let label = WordCountFormatter.compactLabel(for: totalTabAcceptedWordCount) {
                 Text(label)
                     .font(.system(size: 10, weight: .medium).monospacedDigit())
             }
         }
+        .onAppear {
+            totalTabAcceptedWordCount = suggestionCoordinator.totalTabAcceptedWordCount
+        }
+        .onReceive(suggestionCoordinator.$totalTabAcceptedWordCount) { count in
+            totalTabAcceptedWordCount = count
+        }
     }
 
-    /// VoiceOver needs the persistent global disable state distinguished from a temporary pause.
-    /// Global disable takes precedence when both states are present because it remains in effect
-    /// after the temporary pause is cleared.
     private var inactiveAccessibilityLabel: String {
         suggestionSettings.isGloballyEnabled ? "Tabfast paused" : "Tabfast disabled"
     }

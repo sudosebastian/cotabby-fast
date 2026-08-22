@@ -99,16 +99,15 @@ struct WelcomeTemplateStepView: View {
 // MARK: - Tier tint
 
 extension OnboardingTemplate {
-    /// Per-tier tile tint, defined in the UI layer so the model type stays free of SwiftUI.
-    /// Green / brand blue / purple gives the three cards distinct, scannable identities.
+    /// Per-tier tile tint. Distinct hues without a purple “AI” stop.
     var onboardingTint: Color {
         switch self {
         case .quick:
             .green
         case .everyday:
-            CotabbyBrand.accent
+            TabfastDesign.ColorToken.accent
         case .powerful:
-            .purple
+            .orange
         case .custom:
             .gray
         }
@@ -140,32 +139,24 @@ private struct TemplateCard: View {
             featureDisclosure
         }
         .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.regularMaterial)
-                    .shadow(
-                        color: isActive ? CotabbyBrand.accent.opacity(0.18) : .black.opacity(0.07),
-                        radius: isActive ? 7 : 3,
-                        y: 1
-                    )
-
-                // A faint brand wash over the material marks the chosen card even at a glance from
-                // across the room; the stroke alone is too subtle once three cards are stacked.
-                if isActive {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(CotabbyBrand.accent.opacity(0.06))
+            RoundedRectangle(cornerRadius: TabfastDesign.Radius.onboardingCard, style: .continuous)
+                .fill(.regularMaterial)
+                .overlay {
+                    if isActive {
+                        RoundedRectangle(cornerRadius: TabfastDesign.Radius.onboardingCard, style: .continuous)
+                            .fill(TabfastDesign.ColorToken.accent.opacity(0.06))
+                    }
                 }
-            }
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: TabfastDesign.Radius.onboardingCard, style: .continuous)
                 .strokeBorder(
-                    isActive ? CotabbyBrand.accent.opacity(0.55) : Color.primary.opacity(0.07),
+                    isActive ? TabfastDesign.ColorToken.accent.opacity(0.55) : Color.primary.opacity(0.08),
                     lineWidth: isActive ? 1.5 : 0.5
                 )
         )
         .opacity(availability.isDisabled ? 0.55 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isActive)
+        .animation(TabfastDesign.Motion.selection, value: isActive)
     }
 
     /// Main card surface that selects the template. The feature disclosure is rendered as a sibling
@@ -453,13 +444,7 @@ private struct RecommendedBadge: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(
-                Capsule().fill(
-                    LinearGradient(
-                        colors: [CotabbyBrand.accentSoft, CotabbyBrand.accent],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                Capsule().fill(TabfastDesign.ColorToken.accent)
             )
     }
 }

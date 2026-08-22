@@ -275,170 +275,96 @@ extension WelcomeView {
 // MARK: - Step 1: Welcome
 
 extension WelcomeView {
+    /// Hierarchy: (1) product demo (2) name + one sentence (3) Get Started.
     fileprivate var welcomePage: some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            VStack(spacing: 24) {
-                Image("TabfastLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 84, height: 84)
-                    .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-                    .shadow(color: CotabbyBrand.accent.opacity(0.45), radius: 22, y: 8)
+            VStack(spacing: TabfastDesign.Space.lg) {
+                WelcomeHeroDemo()
+                    .frame(maxWidth: 440)
                     .onboardingReveal(0)
 
-                VStack(spacing: 8) {
-                    Text("Welcome to Tabfast")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                VStack(spacing: TabfastDesign.Space.xs) {
+                    Text("Tabfast")
+                        .font(TabfastDesign.Typography.display)
 
-                    Text("Ghost-text autocomplete in every app,\ngenerated entirely on your Mac.")
-                        .font(.system(size: 15, design: .rounded))
+                    Text("Ghost text in every app. On your Mac.")
+                        .font(TabfastDesign.Typography.callout)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .onboardingReveal(1)
 
-                WelcomeHeroDemo()
-                    .frame(maxWidth: 440)
-                    .onboardingReveal(2)
-
-                HStack(spacing: 8) {
-                    WelcomeFeatureChip(systemImage: "lock.fill", label: "100% on-device")
-                    WelcomeFeatureChip(systemImage: "chevron.left.forwardslash.chevron.right", label: "Open source")
-                    WelcomeFeatureChip(systemImage: "macwindow", label: "Works everywhere")
-                }
-                .onboardingReveal(3)
-
                 WelcomeButton(title: "Get Started") {
                     go(to: .permissions)
                 }
-                .padding(.top, 4)
-                .onboardingReveal(4)
+                .onboardingReveal(2)
             }
 
             Spacer(minLength: 0)
         }
-        .padding(36)
-    }
-}
-
-/// Small capsule highlighting one of Cotabby's differentiators on the welcome screen.
-private struct WelcomeFeatureChip: View {
-    let systemImage: String
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(CotabbyBrand.accent)
-
-            Text(label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Capsule().fill(.quaternary.opacity(0.5)))
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5))
+        .padding(TabfastDesign.Space.onboardingHorizontal)
     }
 }
 
 // MARK: - Step: Done
 
 extension WelcomeView {
+    /// Hierarchy: (1) how to accept (2) menu bar (3) start. Showcase cut — onboarding already
+    /// showed the product on welcome; repeating demos fails reduction.
     fileprivate var donePage: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 24) {
-                    doneHero
-                        .onboardingReveal(0)
+            Spacer(minLength: 0)
 
-                    VStack(spacing: 8) {
-                        Text("You're all set")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+            VStack(spacing: TabfastDesign.Space.lg) {
+                Text("You're ready")
+                    .font(TabfastDesign.Typography.display)
+                    .onboardingReveal(0)
 
-                        Text(doneStepSubtitle)
-                            .font(.system(size: 15, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
+                Text(doneStepSubtitle)
+                    .font(TabfastDesign.Typography.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
                     .onboardingReveal(1)
 
-                    menuBarCallout
-                        .onboardingReveal(2)
+                menuBarCallout
+                    .onboardingReveal(2)
 
-                    OnboardingFeatureShowcase()
-                        .onboardingReveal(3)
-                }
-                .padding(.horizontal, OnboardingLayout.horizontalPadding)
-                .padding(.top, 40)
-                .padding(.bottom, 16)
-            }
-
-            VStack(spacing: 12) {
                 doneStepModelStatus
 
                 WelcomeButton(title: "Start Using Tabfast") {
                     onDismiss()
                 }
+                .onboardingReveal(3)
             }
             .padding(.horizontal, OnboardingLayout.horizontalPadding)
-            .padding(.top, 8)
-            .padding(.bottom, 26)
-            .onboardingReveal(4)
-        }
-    }
-
-    /// The completion mark: a lit-from-above green seal, sized to land as the step's reward.
-    private var doneHero: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color.green.opacity(0.8), Color.green],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: .green.opacity(0.4), radius: 18, y: 6)
-
-            Image(systemName: "checkmark")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 72, height: 72)
-    }
-
-    /// Menu bar discovery is the single most important thing to leave the user with: people who
-    /// can't find the app after the window closes assume it isn't running. So it gets a real card,
-    /// not a footnote.
-    private var menuBarCallout: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.quaternary.opacity(0.55))
-
-                Image(systemName: "forward.end.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.primary)
-            }
-            .frame(width: 44, height: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Tabfast lives in your menu bar")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-
-                Text("Click the Tabfast icon to pause suggestions, switch models, or open Settings.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
 
             Spacer(minLength: 0)
         }
-        .padding(14)
-        .onboardingCard(cornerRadius: 12)
+        .padding(.vertical, TabfastDesign.Space.xl)
+    }
+
+    private var menuBarCallout: some View {
+        HStack(alignment: .top, spacing: TabfastDesign.Space.sm) {
+            Image(systemName: "menubar.rectangle")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(TabfastDesign.ColorToken.accent)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Menu bar")
+                    .font(TabfastDesign.Typography.callout.weight(.semibold))
+                Text("Pause, switch models, or open Settings from the Tabfast icon.")
+                    .font(TabfastDesign.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(TabfastDesign.Space.sm)
+        .frame(maxWidth: 420)
+        .onboardingCard()
     }
 
     private var doneStepSubtitle: String {
@@ -447,13 +373,11 @@ extension WelcomeView {
         let hasFullAccept = suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
 
         if hasFullAccept {
-            return "Start typing anywhere.\nPress \(wordKey) to accept a word, \(fullKey) for the full suggestion."
+            return "Type in any app.\n\(wordKey) accepts a word. \(fullKey) accepts all."
         }
-        return "Start typing anywhere.\nPress \(wordKey) to accept."
+        return "Type in any app.\nPress \(wordKey) to accept."
     }
 
-    /// A compact reassurance line on the final step when a local model is still downloading or has
-    /// finished. Hidden for Apple Intelligence plans, which download nothing.
     @ViewBuilder
     private var doneStepModelStatus: some View {
         switch selectedModelDownloadState {
@@ -462,19 +386,19 @@ extension WelcomeView {
                 ProgressView()
                     .controlSize(.small)
                 if let progress {
-                    Text("Downloading your model… \(Int((progress * 100).rounded()))%")
-                        .font(.system(size: 12))
+                    Text("Downloading model… \(Int((progress * 100).rounded()))%")
+                        .font(TabfastDesign.Typography.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Downloading your model…")
-                        .font(.system(size: 12))
+                    Text("Downloading model…")
+                        .font(TabfastDesign.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         case .downloaded:
-            Label("Your model is ready", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.green)
+            Text("Model ready")
+                .font(TabfastDesign.Typography.caption.weight(.medium))
+                .foregroundStyle(TabfastDesign.ColorToken.success)
         case .failed, .idle, .none:
             EmptyView()
         }

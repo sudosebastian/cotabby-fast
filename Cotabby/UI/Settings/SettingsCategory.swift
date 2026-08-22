@@ -66,16 +66,16 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     /// identity everywhere it appears.
     var tint: Color {
         switch self {
-        case .home: return .blue
+        case .home: return TabfastDesign.ColorToken.accent
         case .general: return .gray
-        case .appearance: return .purple
+        case .appearance: return Color(red: 0.35, green: 0.45, blue: 0.75)
         case .emoji: return .yellow
-        case .writing: return .indigo
+        case .writing: return Color(red: 0.20, green: 0.55, blue: 0.50)
         case .context: return .teal
         case .engineAndModel: return .orange
-        case .shortcuts: return .pink
-        case .apps: return .red
-        case .permissions: return .cyan
+        case .shortcuts: return Color(red: 0.75, green: 0.35, blue: 0.40)
+        case .apps: return Color(red: 0.70, green: 0.30, blue: 0.30)
+        case .permissions: return TabfastDesign.ColorToken.accentDeep
         case .performance: return .green
         case .about: return .gray
         }
@@ -84,18 +84,18 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     /// One-line caption used by the Home quick-link cards.
     var summary: String {
         switch self {
-        case .home: return "Overview and search"
-        case .general: return "Core toggles and behavior"
-        case .appearance: return "Ghost text style and display"
-        case .emoji: return "The inline emoji picker"
-        case .writing: return "Length, profile, and corrections"
-        case .context: return "What the model can reference"
-        case .engineAndModel: return "Choose the engine and models"
-        case .shortcuts: return "Keys that accept suggestions"
-        case .apps: return "Where Tabfast stays quiet"
-        case .permissions: return "System access and privacy"
-        case .performance: return "Latency, quality, and resources"
-        case .about: return "Version, support, and licenses"
+        case .home: return "Search and status"
+        case .general: return "Power and startup"
+        case .appearance: return "Ghost text look"
+        case .emoji: return "Inline emoji picker"
+        case .writing: return "Length and profile"
+        case .context: return "What the model sees"
+        case .engineAndModel: return "Engine and models"
+        case .shortcuts: return "Accept keys"
+        case .apps: return "Quiet apps"
+        case .permissions: return "System access"
+        case .performance: return "Latency and quality"
+        case .about: return "Version and licenses"
         }
     }
 

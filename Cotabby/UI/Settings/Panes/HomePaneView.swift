@@ -1,16 +1,13 @@
 import SwiftUI
 
-/// File overview:
-/// "Home" detail pane: the landing surface of the Settings window. Unlike every other pane it is
-/// not a grouped form; it is a composed page: an identity hero, a prominent search field over the
-/// whole settings catalog, an at-a-glance status row (power, engine, permissions), quick links
-/// into the most-visited panes, the live feature demos, and a one-line footer with the project
-/// links. Search results replace the page body while a query is active so the field behaves like
-/// a command surface rather than a filter bolted onto a page.
+/// Settings Home — rebuilt from the design brief.
 ///
-/// The feature demos are inert (they never touch the real suggestion pipeline) and are passed
-/// `autoplay: false` so the looping animations stay idle until the pointer is over them, keeping
-/// this pane cheap to leave open.
+/// Reader job: find a setting, glance status, open a pane.
+/// Hierarchy: (1) search (2) status line (3) pane list (4) links.
+/// Dials: quiet · standard · medium brand · engineered · balanced.
+///
+/// Cut vs prior Home: logo hero, accent backdrop, three status cards, card-grid quick links,
+/// feature showcase. None survived the decision filter for a daily Settings surface.
 struct HomePaneView: View {
     @ObservedObject var navigation: SettingsNavigationModel
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
@@ -22,54 +19,33 @@ struct HomePaneView: View {
 
     @State private var query = ""
     @FocusState private var isSearchFocused: Bool
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var hasAppeared = false
-
-    /// The panes offered as quick links. Power, engine, and permissions already live in the
-    /// status row above, so the grid covers the everyday customization surfaces.
-    private static let quickLinkCategories: [SettingsCategory] = [
-        .appearance, .writing, .shortcuts, .emoji, .apps, .performance
-    ]
 
     private static let maximumSearchResults = 12
 
-    var body: some View {
-        ZStack(alignment: .top) {
-            heroBackdrop
-            ScrollView {
-                VStack(spacing: 28) {
-                    hero
-                    searchField
+    private var browseCategories: [SettingsCategory] {
+        SettingsCategory.sidebarGroups.flatMap { $0 }.filter { $0 != .home }
+    }
 
-                    if trimmedQuery.isEmpty {
-                        statusRow
-                        quickLinksSection
-                        showcaseSection
-                        footer
-                    } else {
-                        searchResultsCard
-                    }
-                }
-                .padding(.horizontal, 28)
-                .padding(.top, 28)
-                .padding(.bottom, 32)
-                .frame(maxWidth: 700)
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .onAppear {
-            guard !hasAppeared else { return }
-            if reduceMotion {
-                hasAppeared = true
-            } else {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                    hasAppeared = true
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TabfastDesign.Space.lg) {
+                identityRow
+                searchField
+
+                if trimmedQuery.isEmpty {
+                    statusLine
+                    paneList
+                    footer
+                } else {
+                    searchResults
                 }
             }
+            .padding(.horizontal, TabfastDesign.Space.pageInset)
+            .padding(.top, TabfastDesign.Space.lg)
+            .padding(.bottom, TabfastDesign.Space.xl)
+            .frame(maxWidth: TabfastDesign.Space.settingsContentMax, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        // Cmd-F routes here from the container. `initial: true` covers the cross-pane case where
-        // Home is rebuilt because of the shortcut and the publish happens before this view exists.
         .onChange(of: navigation.pendingSearchFocus, initial: true) { _, pending in
             guard pending else { return }
             isSearchFocused = true
@@ -81,89 +57,40 @@ struct HomePaneView: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - Hero
+    // MARK: - 4. Metadata identity (subordinate)
 
-    /// A soft accent wash behind the top of the page. Static (it does not scroll) so it reads as
-    /// room lighting rather than content.
-    private var heroBackdrop: some View {
-        LinearGradient(
-            colors: [Color.accentColor.opacity(0.12), Color.accentColor.opacity(0)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        .frame(height: 260)
-        .frame(maxWidth: .infinity)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    private var hero: some View {
-        VStack(spacing: 10) {
-            Image("TabfastLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 64, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                // The brand-blue glow the onboarding welcome hero casts, scaled to this logo size,
-                // so finishing onboarding and landing on Home reads as one continuous surface.
-                .shadow(color: CotabbyBrand.accent.opacity(0.4), radius: 16, y: 6)
-                .scaleEffect(hasAppeared ? 1 : 0.9)
-                .opacity(hasAppeared ? 1 : 0)
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("Tabfast")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                if let version = appVersionText {
-                    Text(version)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(.quaternary.opacity(0.7), in: Capsule())
-                }
+    private var identityRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TabfastDesign.Space.xs) {
+            Text("Tabfast")
+                .font(TabfastDesign.Typography.title)
+            if let version = Bundle.main.cotabbyDisplayVersion {
+                Text(version)
+                    .font(TabfastDesign.Typography.caption)
+                    .foregroundStyle(.secondary)
             }
-
-            // The tagline demos the product in one line: the trailing half renders like the ghost
-            // text Cotabby draws at the caret.
-            (Text("Write faster, ").foregroundColor(.primary)
-                + Text("everywhere you type").foregroundColor(ghostTextColor))
-                .font(.system(size: 15, design: .rounded))
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 
-    /// Matches the overlay's adaptive ghost gray so the tagline previews the real feature color.
-    private var ghostTextColor: Color {
-        colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45)
-    }
-
-    private var appVersionText: String? {
-        Bundle.main.cotabbyDisplayVersion
-    }
-
-    // MARK: - Search
+    // MARK: - 1. Search (hero)
 
     private var searchField: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: TabfastDesign.Space.xs) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            TextField("Search every setting", text: $query)
+            TextField("Search settings", text: $query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
+                .font(TabfastDesign.Typography.body)
                 .focused($isSearchFocused)
                 .onSubmit(openTopResult)
 
             if trimmedQuery.isEmpty {
                 Text("⌘F")
-                    .font(.caption.weight(.medium))
+                    .font(TabfastDesign.Typography.caption)
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     .accessibilityHidden(true)
             } else {
                 Button {
@@ -176,162 +103,208 @@ struct HomePaneView: View {
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, TabfastDesign.Space.sm)
+        .padding(.vertical, TabfastDesign.Space.sm)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: TabfastDesign.Radius.surface, style: .continuous)
                 .fill(Color(nsColor: .textBackgroundColor))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: TabfastDesign.Radius.surface, style: .continuous)
                 .strokeBorder(
-                    isSearchFocused ? Color.accentColor.opacity(0.55) : Color.primary.opacity(0.10),
+                    isSearchFocused
+                        ? TabfastDesign.ColorToken.accent.opacity(0.6)
+                        : Color.primary.opacity(0.12),
                     lineWidth: 1
                 )
         )
-        .shadow(color: .black.opacity(0.07), radius: 5, y: 2)
         .accessibilityLabel("Search settings")
     }
 
-    private var searchResults: [SettingsItem] {
+    // MARK: - 2. Status (one line, not three cards)
+
+    private var statusLine: some View {
+        HStack(spacing: TabfastDesign.Space.md) {
+            HStack(spacing: TabfastDesign.Space.xs) {
+                Text(suggestionSettings.isGloballyEnabled ? "On" : "Off")
+                    .font(TabfastDesign.Typography.callout.weight(.semibold))
+                    .foregroundStyle(
+                        suggestionSettings.isGloballyEnabled
+                            ? TabfastDesign.ColorToken.success
+                            : .secondary
+                    )
+                Toggle("", isOn: globallyEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+                    .accessibilityLabel("Enable Tabfast")
+            }
+
+            statusDivider
+
+            Button {
+                navigation.open(.engineAndModel)
+            } label: {
+                HStack(spacing: 4) {
+                    Text(suggestionSettings.selectedEngine.displayLabel)
+                        .font(TabfastDesign.Typography.callout.weight(.medium))
+                    Text(engineCaption)
+                        .font(TabfastDesign.Typography.caption)
+                        .foregroundStyle(engineNeedsAttention ? TabfastDesign.ColorToken.warning : .secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Engine & Model")
+
+            statusDivider
+
+            Button {
+                navigation.open(.permissions)
+            } label: {
+                Text(permissionManager.requiredPermissionsGranted ? "Permissions OK" : "Permissions needed")
+                    .font(TabfastDesign.Typography.callout)
+                    .foregroundStyle(
+                        permissionManager.requiredPermissionsGranted
+                            ? .secondary
+                            : TabfastDesign.ColorToken.warning
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Permissions")
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, TabfastDesign.Space.xxs)
+    }
+
+    private var statusDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.12))
+            .frame(width: 1, height: 14)
+            .accessibilityHidden(true)
+    }
+
+    // MARK: - 3. Pane list
+
+    private var paneList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(browseCategories.enumerated()), id: \.element.id) { index, category in
+                Button {
+                    navigation.open(category)
+                } label: {
+                    HStack(spacing: TabfastDesign.Space.sm) {
+                        SettingsIconTile(
+                            systemImage: category.systemImage,
+                            tint: category.tint,
+                            size: 22
+                        )
+                        Text(category.label)
+                            .font(TabfastDesign.Typography.body)
+                            .foregroundStyle(.primary)
+                        Spacer(minLength: 0)
+                        Text(category.summary)
+                            .font(TabfastDesign.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        if attentionCategories.contains(category) {
+                            Circle()
+                                .fill(TabfastDesign.ColorToken.warning)
+                                .frame(width: 6, height: 6)
+                                .accessibilityLabel("Needs attention")
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, TabfastDesign.Space.sm)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(category.label) settings")
+                .accessibilityHint(category.summary)
+
+                if index < browseCategories.count - 1 {
+                    Divider()
+                }
+            }
+        }
+    }
+
+    // MARK: - Search results
+
+    private var searchResultsList: [SettingsItem] {
         Array(SettingsItem.results(for: trimmedQuery).prefix(Self.maximumSearchResults))
     }
 
-    private var searchResultsCard: some View {
-        let results = searchResults
+    private var searchResults: some View {
+        let results = searchResultsList
         return VStack(spacing: 0) {
             if results.isEmpty {
-                VStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 22))
-                        .foregroundStyle(.tertiary)
-                    Text("No settings match \u{201C}\(trimmedQuery)\u{201D}")
-                        .foregroundStyle(.secondary)
-                    Text("Try \u{201C}color\u{201D}, \u{201C}shortcut\u{201D}, \u{201C}battery\u{201D}, or \u{201C}privacy\u{201D}.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
+                Text("No settings match \u{201C}\(trimmedQuery)\u{201D}")
+                    .font(TabfastDesign.Typography.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, TabfastDesign.Space.md)
             } else {
                 ForEach(Array(results.enumerated()), id: \.element.id) { index, item in
-                    HomeSearchResultButton(item: item) {
+                    Button {
                         open(item)
+                    } label: {
+                        SettingsSearchResultRow(item: item, style: .full)
+                            .padding(.vertical, TabfastDesign.Space.xs)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     if index < results.count - 1 {
-                        Divider().padding(.leading, 50)
+                        Divider().padding(.leading, 38)
                     }
                 }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.regularMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
-        )
     }
 
-    private func openTopResult() {
-        guard let top = searchResults.first else { return }
-        open(top)
-    }
-
-    private func open(_ item: SettingsItem) {
-        navigation.reveal(item)
-        query = ""
-    }
-
-    // MARK: - Status row
-
-    private var statusRow: some View {
-        HStack(spacing: 12) {
-            powerCard
-            engineCard
-            permissionsCard
-        }
-    }
-
-    private var powerCard: some View {
-        HomeStatusCard(
-            systemImage: "power",
-            tint: suggestionSettings.isGloballyEnabled ? .green : .gray,
-            title: "Tabfast",
-            caption: suggestionSettings.isGloballyEnabled ? "Active" : "Paused"
-        ) {
-            Toggle("", isOn: globallyEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .labelsHidden()
-                .tint(.green)
-                .accessibilityLabel("Enable Tabfast globally")
-        }
-    }
-
-    private var engineCard: some View {
-        Button {
-            navigation.open(.engineAndModel)
-        } label: {
-            HomeStatusCard(
-                systemImage: engineSystemImage,
-                tint: engineNeedsAttention ? .orange : SettingsCategory.engineAndModel.tint,
-                title: suggestionSettings.selectedEngine.displayLabel,
-                caption: engineCaption,
-                captionStyle: engineNeedsAttention ? .warning : .normal
-            ) {
-                HomeStatusChevron()
+    private var footer: some View {
+        HStack(spacing: TabfastDesign.Space.xs) {
+            if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
+                Link("GitHub", destination: repoURL)
             }
+            Text("·").foregroundStyle(.tertiary)
+            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
+                Link("Support", destination: supportURL)
+            }
+            Text("·").foregroundStyle(.tertiary)
+            if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
+                Link("Wiki", destination: wikiURL)
+            }
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Engine: \(suggestionSettings.selectedEngine.displayLabel), \(engineCaption)")
-        .accessibilityHint("Opens Engine & Model settings")
+        .font(TabfastDesign.Typography.caption)
+        .foregroundStyle(.secondary)
+        .padding(.top, TabfastDesign.Space.xs)
     }
 
-    private var permissionsCard: some View {
-        Button {
-            navigation.open(.permissions)
-        } label: {
-            HomeStatusCard(
-                systemImage: permissionManager.requiredPermissionsGranted ? "checkmark.shield.fill" : "exclamationmark.shield.fill",
-                tint: permissionManager.requiredPermissionsGranted ? SettingsCategory.permissions.tint : .orange,
-                title: "Permissions",
-                caption: permissionManager.requiredPermissionsGranted ? "All set" : "Needs attention",
-                captionStyle: permissionManager.requiredPermissionsGranted ? .normal : .warning
-            ) {
-                HomeStatusChevron()
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            "Permissions: \(permissionManager.requiredPermissionsGranted ? "all set" : "needs attention")"
-        )
-        .accessibilityHint("Opens Permissions settings")
-    }
+    // MARK: - Helpers
 
     private var engineNeedsAttention: Bool {
         attentionCategories.contains(.engineAndModel)
     }
 
-    private var engineSystemImage: String {
-        suggestionSettings.selectedEngine.systemImageName
-    }
-
     private var engineCaption: String {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
-            return foundationModelAvailabilityService.isAvailable ? "Ready on this Mac" : "Unavailable"
+            return foundationModelAvailabilityService.isAvailable ? "Ready" : "Unavailable"
         case .llamaOpenSource:
             let selected = runtimeModel.availableModels
                 .first { $0.filename == runtimeModel.selectedModelFilename }
-            return selected?.displayName ?? "No model selected"
+            return selected?.displayName ?? "No model"
         case .openAICompatible:
             if openAICompatibleConnectionModel.state.failureDetail != nil {
                 return "Connection failed"
             }
             return suggestionSettings.openAICompatibleModelName.isEmpty
-                ? "No model selected"
+                ? "No model"
                 : suggestionSettings.openAICompatibleModelName
         }
     }
@@ -343,168 +316,13 @@ struct HomePaneView: View {
         )
     }
 
-    // MARK: - Quick links
-
-    private var quickLinksSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(
-                "Quick settings",
-                caption: "Jump straight to the controls you reach for most."
-            )
-
-            // Two columns at the default window width: three fit, but the captions truncate,
-            // and a quick link whose caption is cut loses the point of having one.
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 260), spacing: 12)],
-                spacing: 12
-            ) {
-                ForEach(Self.quickLinkCategories) { category in
-                    SettingsQuickLinkCard(category: category) {
-                        navigation.open(category)
-                    }
-                }
-            }
-        }
+    private func openTopResult() {
+        guard let top = searchResultsList.first else { return }
+        open(top)
     }
 
-    // MARK: - Showcase
-
-    private var showcaseSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader(
-                "See it in action",
-                caption: "Hover a card to watch it play."
-            )
-            OnboardingFeatureShowcase(autoplay: false, showsMacroReference: true)
-        }
-    }
-
-    // MARK: - Footer
-
-    private var footer: some View {
-        HStack(spacing: 6) {
-            Text("Free & open source")
-            footerDot
-            if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
-                Link("GitHub", destination: repoURL)
-            }
-            footerDot
-            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
-                Link(destination: supportURL) {
-                    Label("Support", systemImage: "heart.fill")
-                        .labelStyle(.titleAndIcon)
-                        .foregroundStyle(.pink)
-                }
-            }
-            footerDot
-            if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
-                Link("Wiki", destination: wikiURL)
-            }
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 4)
-    }
-
-    private var footerDot: some View {
-        Text("\u{00B7}")
-            .foregroundStyle(.tertiary)
-            .accessibilityHidden(true)
-    }
-
-    // MARK: - Shared bits
-
-    private func sectionHeader(_ title: String, caption: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 15, weight: .semibold))
-            Text(caption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-// MARK: - Status card chrome
-
-/// Shared chrome for one at-a-glance status card: tile, two text lines, and a trailing accessory
-/// (a switch or a chevron). The card itself stays passive; interactive cards wrap it in a Button.
-private struct HomeStatusCard<Accessory: View>: View {
-    enum CaptionStyle {
-        case normal
-        case warning
-    }
-
-    let systemImage: String
-    let tint: Color
-    let title: String
-    let caption: String
-    var captionStyle: CaptionStyle = .normal
-    @ViewBuilder let accessory: () -> Accessory
-
-    var body: some View {
-        HStack(spacing: 10) {
-            SettingsIconTile(systemImage: systemImage, tint: tint, size: 28)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(caption)
-                    .font(.caption)
-                    .foregroundStyle(captionStyle == .warning ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-
-            Spacer(minLength: 4)
-
-            accessory()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.regularMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
-        )
-    }
-}
-
-private struct HomeStatusChevron: View {
-    var body: some View {
-        Image(systemName: "chevron.right")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.tertiary)
-            .accessibilityHidden(true)
-    }
-}
-
-// MARK: - Search result row button
-
-/// One hero search hit with its own hover highlight. Split out so each row owns a single
-/// `@State` instead of the page tracking hover indices.
-private struct HomeSearchResultButton: View {
-    let item: SettingsItem
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            SettingsSearchResultRow(item: item, style: .full)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isHovering ? Color.primary.opacity(0.06) : Color.clear)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
+    private func open(_ item: SettingsItem) {
+        navigation.reveal(item)
+        query = ""
     }
 }

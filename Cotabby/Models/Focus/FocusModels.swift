@@ -271,6 +271,37 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         )
     }
 
+    /// Returns a copy with a new focus-change sequence without re-reading Accessibility.
+    /// Used when `FocusTracker` detects a field switch from the first resolve pass and only needs
+    /// to bump the monotonic sequence stamped onto an already-correct live walk.
+    func withFocusChangeSequence(_ sequence: UInt64) -> FocusedInputSnapshot {
+        FocusedInputSnapshot(
+            applicationName: applicationName,
+            bundleIdentifier: bundleIdentifier,
+            processIdentifier: processIdentifier,
+            elementIdentifier: elementIdentifier,
+            role: role,
+            subrole: subrole,
+            caretRect: caretRect,
+            inputFrameRect: inputFrameRect,
+            caretSource: caretSource,
+            caretQuality: caretQuality,
+            observedCharWidth: observedCharWidth,
+            observedContentEdges: observedContentEdges,
+            precedingText: precedingText,
+            trailingText: trailingText,
+            selection: selection,
+            isSecure: isSecure,
+            isIntegratedTerminal: isIntegratedTerminal,
+            isWebContentField: isWebContentField,
+            focusChangeSequence: sequence,
+            focusedURLString: focusedURLString,
+            resolvedFieldStyle: resolvedFieldStyle,
+            windowTitle: windowTitle,
+            fieldPlaceholder: fieldPlaceholder
+        )
+    }
+
     /// The signature lets later pipeline stages detect whether a completion result is stale.
     /// This is the same idea you would use in a React app with a derived cache key.
     /// Content-only fingerprint for staleness detection. Deliberately excludes `elementIdentifier`
@@ -300,6 +331,17 @@ struct FocusSnapshot: Equatable {
         capability: .unsupported("No focused text input"),
         context: nil
     )
+
+    /// Stamps a new `focusChangeSequence` onto an existing resolve without a second AX walk.
+    func withFocusChangeSequence(_ sequence: UInt64) -> FocusSnapshot {
+        guard let context else { return self }
+        return FocusSnapshot(
+            applicationName: applicationName,
+            bundleIdentifier: bundleIdentifier,
+            capability: capability,
+            context: context.withFocusChangeSequence(sequence)
+        )
+    }
 
     /// Returns the app identity that user-facing controls should target.
     ///
