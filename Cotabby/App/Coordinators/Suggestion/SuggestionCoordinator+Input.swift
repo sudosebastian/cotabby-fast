@@ -243,9 +243,11 @@ extension SuggestionCoordinator {
     /// apps in ~10ms; slow Chromium hosts fall through to `hostPublishPollIntervalMs` below.
     private static let hostPublishFirstPollIntervalMs = 10
 
-    /// Reuse window for host-publish polls: if the focus timer (or a prior poll) already captured
-    /// within this age, skip another synchronous AX walk and inspect the published snapshot.
-    private static let hostPublishSnapshotReuseWindowMilliseconds = 25
+    /// Reuse window for host-publish polls. Must be ≥ `hostPublishPollIntervalMs`: while capture is
+    /// owned by this poll chain the focus timer is suppressed, so age only advances between our
+    /// own polls. A shorter window forced a full AX walk on every poll (45ms spacing > 25ms reuse)
+    /// and erased the reuse the comment below describes.
+    private static let hostPublishSnapshotReuseWindowMilliseconds = 60
 
     /// Schedules a fresh prediction once the host app has actually published the new
     /// contenteditable text to AX. The previous fix waited a fixed 150ms — see PR #376 — but the

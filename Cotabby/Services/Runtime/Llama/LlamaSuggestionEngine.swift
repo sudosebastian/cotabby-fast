@@ -12,9 +12,13 @@ import Logging
 final class LlamaSuggestionEngine {
     private let runtimeManager: LlamaRuntimeGenerating
     private var promptCacheHintTracker = LlamaPromptCacheHintTracker()
-    /// The focus-time warmup in flight, if any. A real generation cancels it on entry so it never
-    /// queues behind a warmup for a prompt the user has already typed past.
+    /// The focus-time warmup or post-generate rewarm in flight, if any.
     private var inflightPrewarmTask: Task<Void, Never>?
+    /// Prompt string the inflight prewarm/rewarm is decoding. Used so a superseding generate can
+    /// *await* a compatible warmup (same prompt or a strict extension) instead of aborting it —
+    /// abort destroys the hybrid/SWA sequence and collapses the next request to a cold `fresh`
+    /// prefill (~100ms) instead of an append-only `extend` (~few ms).
+    private var inflightPrewarmPrompt: String?
 
     init(runtimeManager: LlamaRuntimeGenerating) {
         self.runtimeManager = runtimeManager
@@ -58,13 +62,14 @@ final class LlamaSuggestionEngine {
     /// failures are swallowed (a missed warmup costs nothing the cold path would not have paid)
     /// and the tracker only records the prompt after the native decode actually succeeded.
     func prewarm(for request: SuggestionRequest) async {
-        inflightPrewarmTask?.cancel()
+        cancelInflightPrewarm()
         let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
         let options = Self.makeGenerationOptions(for: request)
         let prompt = Self.effectivePrompt(
             for: request,
             rejectsPartialKVTrims: runtimeManager.rejectsPartialKVTrims
         )
+        inflightPrewarmPrompt = prompt
         let task = Task { [weak self, runtimeManager] in
             do {
                 try await runtimeManager.prefill(
@@ -85,6 +90,10 @@ final class LlamaSuggestionEngine {
         }
         inflightPrewarmTask = task
         await task.value
+        if inflightPrewarmTask == task {
+            inflightPrewarmTask = nil
+            inflightPrewarmPrompt = nil
+        }
     }
 
     /// After a hybrid/SWA generate destroys its sequence (failed post-decode trim), re-prefill the
@@ -92,13 +101,14 @@ final class LlamaSuggestionEngine {
     /// append-only extend path. No-op when trim reuse already left a prompt-only sequence.
     private func schedulePostGenerateRewarm(for request: SuggestionRequest) {
         guard runtimeManager.rejectsPartialKVTrims else { return }
-        inflightPrewarmTask?.cancel()
+        cancelInflightPrewarm()
         let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
         let options = Self.makeGenerationOptions(for: request)
         let prompt = Self.effectivePrompt(
             for: request,
             rejectsPartialKVTrims: true
         )
+        inflightPrewarmPrompt = prompt
         let task = Task { [weak self, runtimeManager] in
             do {
                 try await runtimeManager.prefill(
@@ -107,11 +117,14 @@ final class LlamaSuggestionEngine {
                     options: options
                 )
                 guard !Task.isCancelled else { return }
-                self?.promptCacheHintTracker.recordSuccessfulRequest(request)
-                CotabbyLogger.suggestion.debug(
-                    "Llama post-generate rewarm ready for extend",
-                    metadata: ["request_id": .string(request.requestID), "engine": .string("llama")]
-                )
+                await MainActor.run {
+                    guard let self, self.inflightPrewarmTask != nil else { return }
+                    self.promptCacheHintTracker.recordSuccessfulRequest(request)
+                    CotabbyLogger.suggestion.debug(
+                        "Llama post-generate rewarm ready for extend",
+                        metadata: ["request_id": .string(request.requestID), "engine": .string("llama")]
+                    )
+                }
             } catch {
                 CotabbyLogger.suggestion.debug(
                     "Llama post-generate rewarm skipped: \(error.localizedDescription)",
@@ -120,6 +133,34 @@ final class LlamaSuggestionEngine {
             }
         }
         inflightPrewarmTask = task
+    }
+
+    /// True when finishing `warmedPrompt` leaves KV that `newPrompt` can append-only-extend onto.
+    private static func prewarmCanServeGenerate(warmedPrompt: String, newPrompt: String) -> Bool {
+        newPrompt == warmedPrompt || newPrompt.hasPrefix(warmedPrompt)
+    }
+
+    private func cancelInflightPrewarm() {
+        inflightPrewarmTask?.cancel()
+        inflightPrewarmTask = nil
+        inflightPrewarmPrompt = nil
+    }
+
+    /// Lets a compatible prewarm/rewarm finish so the upcoming generate can extend; cancels only
+    /// when the warmed prompt cannot be a prefix of this request (divergent field or shorter edit).
+    private func resolveInflightPrewarm(beforeGenerating prompt: String) async {
+        guard let task = inflightPrewarmTask else { return }
+        let warmed = inflightPrewarmPrompt
+        if let warmed, Self.prewarmCanServeGenerate(warmedPrompt: warmed, newPrompt: prompt) {
+            await task.value
+        } else {
+            task.cancel()
+            await task.value
+        }
+        if inflightPrewarmTask == task {
+            inflightPrewarmTask = nil
+            inflightPrewarmPrompt = nil
+        }
     }
 
     /// Executes one generation request and packages the raw and normalized result for the coordinator.
@@ -141,10 +182,13 @@ final class LlamaSuggestionEngine {
             "engine": .string("llama")
         ]
         do {
-            // A still-running focus warmup must not make this request wait behind it on the
-            // runtime's autocomplete lock; cancelling it aborts its native decode mid-chunk.
-            inflightPrewarmTask?.cancel()
-            inflightPrewarmTask = nil
+            let prompt = Self.effectivePrompt(
+                for: request,
+                rejectsPartialKVTrims: runtimeManager.rejectsPartialKVTrims
+            )
+            // Prefer finishing a rewarm/prewarm whose prompt is a prefix of this request over
+            // aborting it. Abort destroys hybrid/SWA sequences and forces a cold fresh prefill.
+            await resolveInflightPrewarm(beforeGenerating: prompt)
 
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
@@ -158,10 +202,6 @@ final class LlamaSuggestionEngine {
                 ]) { _, new in new }
             )
             let options = Self.makeGenerationOptions(for: request)
-            let prompt = Self.effectivePrompt(
-                for: request,
-                rejectsPartialKVTrims: runtimeManager.rejectsPartialKVTrims
-            )
             let output: LlamaGenerationOutput
             if let onPartial {
                 // Coalesce decode-thread partials before MainActor normalize. Without this,
@@ -314,8 +354,7 @@ final class LlamaSuggestionEngine {
     /// generation request that crosses this engine boundary.
     func resetCachedGenerationContext() async {
         // The editing context moved on, so a warmup for the previous field's prompt is stale.
-        inflightPrewarmTask?.cancel()
-        inflightPrewarmTask = nil
+        cancelInflightPrewarm()
         promptCacheHintTracker.reset()
         runtimeManager.resetPromptCache()
     }

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Menu bar control panel — rebuilt from the design brief.
@@ -9,8 +10,12 @@ import SwiftUI
 struct MenuBarView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
-    @ObservedObject var modelDownloadManager: ModelDownloadManager
-    @ObservedObject var focusModel: FocusTrackingModel
+    /// Actions only — download progress must not invalidate the whole panel while MenuBarExtra
+    /// keeps content alive between openings.
+    let modelDownloadManager: ModelDownloadManager
+    /// Snapshot stream is hot; this panel only needs `latestExternalApplication`, subscribed via
+    /// `onReceive` below so focus/AX refreshes do not rebuild the full control surface.
+    let focusModel: FocusTrackingModel
     let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -20,6 +25,7 @@ struct MenuBarView: View {
     let onReportFeedback: () -> Void
 
     @StateObject private var popoverDismisser = MenuBarPopoverDismisser()
+    @State private var focusedExternalApplication: FocusedApplicationIdentity?
 
     var body: some View {
         VStack(alignment: .leading, spacing: TabfastDesign.Space.sm) {
@@ -48,6 +54,10 @@ struct MenuBarView: View {
         .onAppear {
             permissionManager.refresh()
             runtimeModel.refreshAvailableModels()
+            focusedExternalApplication = focusModel.latestExternalApplication
+        }
+        .onReceive(focusModel.$latestExternalApplication.removeDuplicates()) { application in
+            focusedExternalApplication = application
         }
     }
 
@@ -147,7 +157,7 @@ struct MenuBarView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if let application = focusModel.latestExternalApplication,
+                if let application = focusedExternalApplication,
                    !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
                     Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                         .toggleStyle(.switch)
