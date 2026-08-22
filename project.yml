@@ -134,7 +134,7 @@ targetTemplates:
         LD_RUNPATH_SEARCH_PATHS:
           - $(inherited)
           - "@executable_path/../Frameworks"
-        MARKETING_VERSION: "1.0.1"
+        MARKETING_VERSION: "0.7.0-beta"
         # The source module keeps its established internal name while each target below supplies
         # the user-facing product name. This lets the rebrand produce Tabfast.app without turning a
         # product-identity change into a risky rename of every Swift symbol.
